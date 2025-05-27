@@ -8,9 +8,9 @@ import subprocess
 import sys # For platform-specific open
 
 # Assuming these files are in the same directory
-from analysis_functions import find_shooting_moments
+from analysis_functions import find_shooting_moments, WEAPON_METADATA # Import WEAPON_METADATA
 from general_function import download_twitch, hms_to_seconds, seconds_to_hms #
-from clip_functions import clip_video_ffmpeg, clip_video_ffmpeg_merged, clip_video_ffmpeg_with_duration, process_and_merge_times #
+from clip_functions import clip_video_ffmpeg, generate_clips_from_multiple_weapon_times, clip_video_ffmpeg_merged, clip_video_ffmpeg_with_duration, process_and_merge_times #
 
 # --- Logger for the GUI and adapted main logic ---
 
@@ -32,8 +32,8 @@ class TextHandler(logging.Handler): #
 class VideoProcessingGUI:
     def __init__(self, master):
         self.master = master
-        master.title("AoexTool(beta)") #
-        master.geometry("900x850") #
+        master.title("ApexTool(beta)") #
+        master.geometry("900x950") # Increased height for weapon selection
 
         self.style = ttk.Style() #
         self.style.theme_use('clam') #
@@ -47,12 +47,14 @@ class VideoProcessingGUI:
             "NUMBER_ROI_X1": tk.StringVar(value="1723"), "NUMBER_ROI_Y1": tk.StringVar(value="958"), #
             "NUMBER_ROI_X2": tk.StringVar(value="1787"), "NUMBER_ROI_Y2": tk.StringVar(value="1002"), #
             "NUMBER_MID": tk.StringVar(value="1754"), #
+            # BOW_ROI will be used as the general WEAPON_ACTIVATION_ROI
             "BOW_ROI_X1": tk.StringVar(value="1554"), "BOW_ROI_Y1": tk.StringVar(value="958"), #
             "BOW_ROI_X2": tk.StringVar(value="1702"), "BOW_ROI_Y2": tk.StringVar(value="998"), #
-            "INFINITE_ROI_X1": tk.StringVar(value="1723"), "INFINITE_ROI_Y1": tk.StringVar(value="964"), #
-            "INFINITE_ROI_X2": tk.StringVar(value="1782"), "INFINITE_ROI_Y2": tk.StringVar(value="993"), #
-            "BOW_SIMILARITY_THRESHOLD": tk.StringVar(value="0.75"), #
-            "SIMILARITY_THRESHOLD_INFINITE": tk.StringVar(value="0.74"), #
+            "INFINITE_ROI_X1": tk.StringVar(value="1723"), "INFINITE_ROI_Y1": tk.StringVar(value="964"), # Specific to Bow
+            "INFINITE_ROI_X2": tk.StringVar(value="1782"), "INFINITE_ROI_Y2": tk.StringVar(value="993"), # Specific to Bow
+            # BOW_SIMILARITY_THRESHOLD will be used as WEAPON_ACTIVATION_SIMILARITY_THRESHOLD
+            "BOW_SIMILARITY_THRESHOLD": tk.StringVar(value="0.75"), # General for weapon activation
+            "SIMILARITY_THRESHOLD_INFINITE": tk.StringVar(value="0.74"), # Specific to Bow
             "COARSE_SCAN_INTERVAL_SECONDS": tk.StringVar(value="3.0"), #
             "FINE_SCAN_INTERVAL_SECONDS": tk.StringVar(value="0.1"), #
             "START_TIME": tk.StringVar(value="00:00:00.000"), #
@@ -67,6 +69,15 @@ class VideoProcessingGUI:
         }
         
         self.video_checkbox_vars = {} #
+        self.selected_weapons_vars = { # For selecting weapons for analysis (Part 2)
+            weapon_name: tk.BooleanVar(value=False) for weapon_name in WEAPON_METADATA.keys()
+        }
+        # Default some common weapons to True if desired, e.g.:
+        # if "bow" in self.selected_weapons_vars:
+        #     self.selected_weapons_vars["bow"].set(True)
+        # if "r3030" in self.selected_weapons_vars:
+        #     self.selected_weapons_vars["r3030"].set(True)
+
 
         self.create_widgets() # This creates self.log_text_widget
         self._setup_gui_text_handler_and_initial_root_config()
@@ -144,9 +155,9 @@ class VideoProcessingGUI:
         params_frame.pack(fill=tk.X, expand=False, pady=5, anchor=tk.N) #
         param_layout = [ #
             [("Number ROI (X1 Y1 X2 Y2 M):", ["NUMBER_ROI_X1", "NUMBER_ROI_Y1", "NUMBER_ROI_X2", "NUMBER_ROI_Y2", "NUMBER_MID"])], #
-            [("Bow ROI (X1 Y1 X2 Y2):", ["BOW_ROI_X1", "BOW_ROI_Y1", "BOW_ROI_X2", "BOW_ROI_Y2"]), #
-             ("Infinite ROI (X1 Y1 X2 Y2):", ["INFINITE_ROI_X1", "INFINITE_ROI_Y1", "INFINITE_ROI_X2", "INFINITE_ROI_Y2"])], #
-            [("Bow Thresh:", ["BOW_SIMILARITY_THRESHOLD"]), ("Infinite Thresh:", ["SIMILARITY_THRESHOLD_INFINITE"]), #
+            [("Weapon Activation ROI (X1 Y1 X2 Y2):", ["BOW_ROI_X1", "BOW_ROI_Y1", "BOW_ROI_X2", "BOW_ROI_Y2"]), # Renamed label for clarity
+             ("Bow Infinite ROI (X1 Y1 X2 Y2):", ["INFINITE_ROI_X1", "INFINITE_ROI_Y1", "INFINITE_ROI_X2", "INFINITE_ROI_Y2"])], #
+            [("Weapon Act. Thresh:", ["BOW_SIMILARITY_THRESHOLD"]), ("Bow Infinite Thresh:", ["SIMILARITY_THRESHOLD_INFINITE"]), # Renamed label
              ("Coarse Scan (s):", ["COARSE_SCAN_INTERVAL_SECONDS"]), ("Fine Scan (s):", ["FINE_SCAN_INTERVAL_SECONDS"])], #
             [("Analysis Start Time (HH:MM:SS.mmm):", ["START_TIME"], 3)] #
         ]
@@ -166,12 +177,36 @@ class VideoProcessingGUI:
                 current_col_param += (colspan_val * (len(param_keys) if len(param_keys) > 1 else 1)) -1 #
             current_row_param += 1 #
 
+        # --- Weapon Selection Frame ---
+        weapon_select_frame = ttk.LabelFrame(main_frame, text="Select Weapons for Analysis (Part 2 & 3)", padding="10")
+        weapon_select_frame.pack(fill=tk.X, expand=False, pady=5, anchor=tk.N)
+        
+        # Dynamically create checkboxes for weapons
+        weapon_row, weapon_col = 0, 0
+        max_weapon_cols = 4 # Adjust as needed
+        for weapon_internal_name, metadata in WEAPON_METADATA.items():
+            display_name = metadata.get("display_name", weapon_internal_name.replace("_", " ").title())
+            ttk.Checkbutton(weapon_select_frame, text=display_name, variable=self.selected_weapons_vars[weapon_internal_name]).grid(row=weapon_row, column=weapon_col, sticky=tk.W, padx=5, pady=2)
+            weapon_col += 1
+            if weapon_col >= max_weapon_cols:
+                weapon_col = 0
+                weapon_row += 1
+        
+        weapon_buttons_frame = ttk.Frame(weapon_select_frame)
+        weapon_buttons_frame.grid(row=weapon_row + 1, column=0, columnspan=max_weapon_cols, pady=5)
+        ttk.Button(weapon_buttons_frame, text="Select All Weapons", command=self.select_all_weapons).pack(side=tk.LEFT, padx=5)
+        ttk.Button(weapon_buttons_frame, text="Deselect All Weapons", command=self.deselect_all_weapons).pack(side=tk.LEFT, padx=5)
+
+
         tasks_frame = ttk.LabelFrame(main_frame, text="Select Parts to Run", padding="10") #
         tasks_frame.pack(fill=tk.X, expand=False, pady=5, anchor=tk.N) #
         part_descriptions = { #
-            '1': "Part 1: Download videos", '2': "Part 2: Analyze videos", #
-            '3': "Part 3: Clip (shooting_bow.txt)", '4': "Part 4: Clip (infinite.txt)", #
-            '5': "Part 5: Merge TXTs (after make infinite_3.txt)", '6': "Part 6: Clip (sum.txt)" #
+            '1': "Part 1: Download videos",
+            '2': "Part 2: Analyze videos (for selected weapons)", #
+            '3': "Part 3: Clip (for each selected weapon's .txt)", # Updated description
+            '4': "Part 4: Clip Bow Infinite (from infinite.txt)", # Clarified Bow-specific
+            '5': "Part 5: Merge Bow TXTs (shooting_bow.txt + infinite_3.txt)", # Clarified Bow-specific
+            '6': "Part 6: Clip Bow Merged (from shooting_bow_sum.txt)" # Clarified Bow-specific
         }
         col_task, row_task = 0, 0 #
         for part_num, desc in part_descriptions.items(): #
@@ -294,6 +329,12 @@ class VideoProcessingGUI:
     def deselect_all_parts(self): #
         for var in self.selected_parts_vars.values(): var.set(False) #
 
+    def select_all_weapons(self):
+        for var in self.selected_weapons_vars.values(): var.set(True)
+
+    def deselect_all_weapons(self):
+        for var in self.selected_weapons_vars.values(): var.set(False)
+
     def start_processing_thread_gui(self): #
         self.run_button.config(state=tk.DISABLED) #
         self.log_text_widget.configure(state='normal') #
@@ -302,10 +343,12 @@ class VideoProcessingGUI:
         
         config = {key: var.get() for key, var in self.params.items()} #
         try: #
+            # BOW_ROI are general weapon activation ROI, INFINITE_ROI are bow-specific
             for k_int in ["NUMBER_ROI_X1", "NUMBER_ROI_Y1", "NUMBER_ROI_X2", "NUMBER_ROI_Y2", "NUMBER_MID", #
                       "BOW_ROI_X1", "BOW_ROI_Y1", "BOW_ROI_X2", "BOW_ROI_Y2", #
                       "INFINITE_ROI_X1", "INFINITE_ROI_Y1", "INFINITE_ROI_X2", "INFINITE_ROI_Y2"]: #
                 config[k_int] = int(self.params[k_int].get()) #
+            # BOW_SIMILARITY_THRESHOLD is general weapon activation threshold
             for k_float in ["BOW_SIMILARITY_THRESHOLD", "SIMILARITY_THRESHOLD_INFINITE", #
                       "COARSE_SCAN_INTERVAL_SECONDS", "FINE_SCAN_INTERVAL_SECONDS"]: #
                 config[k_float] = float(self.params[k_float].get()) #
@@ -327,6 +370,19 @@ class VideoProcessingGUI:
                 messagebox.showwarning("No Videos Selected", "Please select videos from the list for Parts 2-6, or ensure the list is refreshed.") #
                 self.run_button.config(state=tk.NORMAL); return #
 
+        # Get selected weapons for analysis
+        config["selected_weapons_for_analysis"] = [
+            name for name, var in self.selected_weapons_vars.items() if var.get()
+        ]
+        if '2' in selected_parts_set and not config["selected_weapons_for_analysis"]:
+            messagebox.showwarning("No Weapons Selected", "Part 2 is selected, but no weapons are chosen for analysis. Please select at least one weapon.")
+            self.run_button.config(state=tk.NORMAL); return
+        if '3' in selected_parts_set and not config["selected_weapons_for_analysis"]:
+            messagebox.showwarning("No Weapons for Clipping", "Part 3 is selected, but no weapons were selected for analysis (Part 2). Part 3 relies on Part 2's output for those weapons.")
+            # Potentially allow to proceed if files already exist, but for now, simpler to link it to Part 2 selection
+            self.run_button.config(state=tk.NORMAL); return
+
+
         log_file_path_for_this_run = config["LOG_FILE_PATH"]
 
         self.gui_instance_logger.info(f"Starting processing thread. Log file target for this run: {log_file_path_for_this_run}")
@@ -343,8 +399,11 @@ class VideoProcessingGUI:
         
         ROOT = config["ROOT"] #
         URLPATH = os.path.join(ROOT, "video_urls.txt") #
-        template_image_path = os.path.join(ROOT, "pic_template", "template_bow.png") #
-        infinite_symbol_template_path = os.path.join(ROOT, "pic_template", "template_infinite_bow.png") #
+        
+        # Template paths will be constructed in analysis_functions based on WEAPON_METADATA
+        # bow_template_path = os.path.join(ROOT, "pic_template", "template_bow.png") # No longer passed directly
+        infinite_symbol_template_path = os.path.join(ROOT, "pic_template", "template_infinite_bow.png") # Still needed for bow
+        
         output_root_folder = os.path.join(ROOT, "clips_output") #
         os.makedirs(output_root_folder, exist_ok=True) #
         video_download_base_dir = os.path.join(ROOT, "downloaded_videos") #
@@ -352,8 +411,11 @@ class VideoProcessingGUI:
         
         selected_parts = config["selected_parts"] #
         selected_video_ids_to_process = config.get("selected_video_ids_for_processing", []) #
+        selected_weapons_for_analysis = config.get("selected_weapons_for_analysis", []) #
         
         logic_logger.info(f"User selected Parts: {sorted(list(selected_parts))}") #
+        if selected_weapons_for_analysis and '2' in selected_parts:
+             logic_logger.info(f"User selected Weapons for Analysis (Part 2): {selected_weapons_for_analysis}")
         if selected_video_ids_to_process and any(p in selected_parts for p in ['2','3','4','5','6']): #
             logic_logger.info(f"User selected Video IDs for processing (Parts 2-6): {selected_video_ids_to_process}") #
         
@@ -398,11 +460,14 @@ class VideoProcessingGUI:
             
         if '2' in selected_parts: #
             if not selected_video_ids_to_process: logic_logger.warning("Part 2: No videos selected. Skipping Part 2 as it depends on selection.") #
+            elif not selected_weapons_for_analysis: logic_logger.warning("Part 2: No weapons selected for analysis. Skipping Part 2.")
             else: #
-                if not os.path.exists(template_image_path): logic_logger.error(f"错误: 弓箭模板图片 {template_image_path} 未找到。"); #
-                elif not os.path.exists(infinite_symbol_template_path): logic_logger.error(f"错误: 无穷大符号模板图片 {infinite_symbol_template_path} 未找到。"); #
-                # else: # This else was commented out, ensure it's intended.
-                logic_logger.info(f"开始分析选定的 {len(selected_video_ids_to_process)} 个视频...") #
+                # Template path checks will be done inside find_shooting_moments for each selected weapon
+                # if not os.path.exists(bow_template_path): logic_logger.error(f"错误: 弓箭模板图片 {bow_template_path} 未找到。"); #
+                if "bow" in selected_weapons_for_analysis and not os.path.exists(infinite_symbol_template_path):
+                     logic_logger.error(f"错误: 无穷大符号模板图片 {infinite_symbol_template_path} 未找到 (required for Bow analysis).");
+                
+                logic_logger.info(f"开始分析选定的 {len(selected_video_ids_to_process)} 个视频, 针对武器: {selected_weapons_for_analysis}...") #
                 processed_videos_in_part2 = 0 #
                 for video_id in selected_video_ids_to_process: #
                     filename_in_dir = get_filename_for_id(video_id, video_download_base_dir) #
@@ -411,42 +476,115 @@ class VideoProcessingGUI:
                     logic_logger.info(f"\n[Part 2] 分析视频文件: {filename_in_dir} (ID: {video_id})") #
                     video_specific_output_dir_part2 = os.path.join(output_root_folder, video_id) #
                     os.makedirs(video_specific_output_dir_part2, exist_ok=True) #
-                    shooting_bow_txt_path = os.path.join(video_specific_output_dir_part2, "shooting_bow.txt") #
-                    infinite_txt_path = os.path.join(video_specific_output_dir_part2, "infinite.txt") #
-                    find_shooting_moments(video_path_for_analysis, template_image_path, infinite_symbol_template_path, shooting_bow_txt_path, infinite_txt_path, similarity_threshold_bow=config["BOW_SIMILARITY_THRESHOLD"], similarity_threshold_infinite=config["SIMILARITY_THRESHOLD_INFINITE"], number_roi_x1=config["NUMBER_ROI_X1"], number_roi_y1=config["NUMBER_ROI_Y1"], number_roi_x2=config["NUMBER_ROI_X2"], number_roi_y2=config["NUMBER_ROI_Y2"], mid_split_x=config["NUMBER_MID"], bow_roi_x1=config["BOW_ROI_X1"], bow_roi_y1=config["BOW_ROI_Y1"], bow_roi_x2=config["BOW_ROI_X2"], bow_roi_y2=config["BOW_ROI_Y2"], infinite_roi_x1=config["INFINITE_ROI_X1"], infinite_roi_y1=config["INFINITE_ROI_Y1"], infinite_roi_x2=config["INFINITE_ROI_X2"], infinite_roi_y2=config["INFINITE_ROI_Y2"], coarse_interval_seconds=config["COARSE_SCAN_INTERVAL_SECONDS"], fine_interval_seconds=config["FINE_SCAN_INTERVAL_SECONDS"], start_time=config["START_TIME"]) #
+                    
+                    # shooting_bow.txt and infinite.txt paths are now handled inside find_shooting_moments or are weapon-specific
+                    # shooting_bow_txt_path = os.path.join(video_specific_output_dir_part2, "shooting_bow.txt") #
+                    # infinite_txt_path = os.path.join(video_specific_output_dir_part2, "infinite.txt") #
+
+                    find_shooting_moments(
+                        video_path=video_path_for_analysis,
+                        root_pic_template_dir=os.path.join(ROOT, "pic_template"), # Pass base template dir
+                        selected_weapon_names=selected_weapons_for_analysis, # Pass selected weapons
+                        # Paths for specific files (like infinite for bow, and output dir)
+                        video_output_dir=video_specific_output_dir_part2,
+                        infinite_symbol_template_path=infinite_symbol_template_path, # Still needed for bow
+                        # ROI and Thresholds (BOW_ROI is general weapon activation ROI)
+                        weapon_activation_similarity_threshold=config["BOW_SIMILARITY_THRESHOLD"],
+                        similarity_threshold_infinite=config["SIMILARITY_THRESHOLD_INFINITE"],
+                        number_roi_x1=config["NUMBER_ROI_X1"], number_roi_y1=config["NUMBER_ROI_Y1"],
+                        number_roi_x2=config["NUMBER_ROI_X2"], number_roi_y2=config["NUMBER_ROI_Y2"],
+                        mid_split_x=config["NUMBER_MID"],
+                        weapon_roi_x1=config["BOW_ROI_X1"], weapon_roi_y1=config["BOW_ROI_Y1"], # General weapon ROI
+                        weapon_roi_x2=config["BOW_ROI_X2"], weapon_roi_y2=config["BOW_ROI_Y2"], # General weapon ROI
+                        infinite_roi_x1=config["INFINITE_ROI_X1"], infinite_roi_y1=config["INFINITE_ROI_Y1"], # Bow specific
+                        infinite_roi_x2=config["INFINITE_ROI_X2"], infinite_roi_y2=config["INFINITE_ROI_Y2"], # Bow specific
+                        coarse_interval_seconds=config["COARSE_SCAN_INTERVAL_SECONDS"],
+                        fine_interval_seconds=config["FINE_SCAN_INTERVAL_SECONDS"],
+                        start_time=config["START_TIME"]
+                    )
                     processed_videos_in_part2 += 1 #
                 if processed_videos_in_part2 == 0 and selected_video_ids_to_process : logic_logger.info(f"Part 2: 没有选定视频被成功分析。") #
             logic_logger.info("--- Part 2 (分析) 完成 ---") #
         else: logic_logger.info("--- 跳过 Part 2: 分析视频 ---") #
         
         if '3' in selected_parts: #
-            if not selected_video_ids_to_process: logic_logger.warning("Part 3: No videos selected. Skipping.") #
-            else: #
-                logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频剪辑 (Part 3)...") #
-                processed_clips_in_part3 = 0 #
-                for video_id in selected_video_ids_to_process: #
-                    if not os.path.isdir(video_download_base_dir): logic_logger.error(f"Video dir not found for Part 3."); break #
-                    filename_in_dir_p3 = get_filename_for_id(video_id, video_download_base_dir) #
-                    if not filename_in_dir_p3: logic_logger.warning(f"Part 3: File for '{video_id}' not found. Skipping."); continue #
-                    video_path_for_clipping = os.path.join(video_download_base_dir, filename_in_dir_p3) #
-                    video_specific_output_dir_p3 = os.path.join(output_root_folder, video_id) #
-                    shooting_bow_txt_path_for_clipping = os.path.join(video_specific_output_dir_p3, "shooting_bow.txt") #
-                    if not os.path.exists(video_specific_output_dir_p3): # Check if output dir exists
-                        logic_logger.warning(f"Part 3: Output directory '{video_specific_output_dir_p3}' for video ID '{video_id}' not found. Skipping.")
+            if not selected_video_ids_to_process:
+                logic_logger.warning("Part 3: No videos selected. Skipping.")
+            elif not selected_weapons_for_analysis:
+                logic_logger.warning("Part 3: No weapons were selected for analysis (Part 2), "
+                                     "so no weapon-specific TXT files to clip from. Skipping.")
+            else:
+                logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频, "
+                                 f"针对分析过的武器 {selected_weapons_for_analysis} 进行合并排序剪辑 (Part 3)...")
+
+                total_clips_made_part3 = 0 # To count if any clips were made across all videos
+
+                for video_id in selected_video_ids_to_process:
+                    if not os.path.isdir(video_download_base_dir):
+                        logic_logger.error(f"Video dir not found for Part 3: {video_download_base_dir}. Breaking Part 3.")
+                        break 
+
+                    filename_in_dir_p3 = get_filename_for_id(video_id, video_download_base_dir)
+                    if not filename_in_dir_p3:
+                        logic_logger.warning(f"Part 3: Video file for ID '{video_id}' not found in "
+                                             f"{video_download_base_dir}. Skipping video for Part 3.")
                         continue
-                    if not (os.path.exists(shooting_bow_txt_path_for_clipping) and os.path.getsize(shooting_bow_txt_path_for_clipping) > 0): #
-                        logic_logger.warning(f"Part 3: shooting_bow.txt for {video_id} at '{shooting_bow_txt_path_for_clipping}' missing or empty. Skipping.")
-                        continue #
-                    clip_video_ffmpeg(video_path_for_clipping, shooting_bow_txt_path_for_clipping, video_specific_output_dir_p3, clip_duration=0.9) #
-                    processed_clips_in_part3 +=1 #
-                if processed_clips_in_part3 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 3: 没有选定视频被剪辑。") #
-            logic_logger.info("--- Part 3 (剪辑) 完成 ---") #
-        else: logic_logger.info("--- 跳过 Part 3: 剪辑视频 ---") #
+
+                    video_path_for_clipping = os.path.join(video_download_base_dir, filename_in_dir_p3)
+                    video_specific_output_dir_p3 = os.path.join(output_root_folder, video_id)
+
+                    if not os.path.exists(video_specific_output_dir_p3):
+                        logic_logger.warning(f"Part 3: Output directory '{video_specific_output_dir_p3}' "
+                                             f"for video ID '{video_id}' not found. Skipping video for Part 3.")
+                        continue
+
+                    weapon_time_sources_for_this_video = []
+                    for weapon_name_to_clip in selected_weapons_for_analysis:
+                        weapon_times_txt_filename = f"shooting_{weapon_name_to_clip}.txt"
+                        weapon_shooting_times_txt_path = os.path.join(video_specific_output_dir_p3, weapon_times_txt_filename)
+
+                        if os.path.exists(weapon_shooting_times_txt_path) and os.path.getsize(weapon_shooting_times_txt_path) > 0:
+                            weapon_time_sources_for_this_video.append({
+                                'file_path': weapon_shooting_times_txt_path,
+                                'weapon_name': weapon_name_to_clip
+                            })
+                        else:
+                            logic_logger.info(f"Part 3: 时间文件 {weapon_times_txt_filename} for video {video_id} "
+                                             f"(武器: {weapon_name_to_clip}) 不存在或为空. "
+                                             f"不会包含在此视频的合并剪辑中.")
+
+                    if weapon_time_sources_for_this_video:
+                        logic_logger.info(f"Part 3: 为视频 ID '{video_id}' 准备从 "
+                                         f"{len(weapon_time_sources_for_this_video)} 个武器时间文件中收集时间戳进行合并剪辑.")
+                        # Call the new function from clip_functions.py
+                        # generate_clips_from_multiple_weapon_times will handle its own logging for created clips.
+                        generate_clips_from_multiple_weapon_times(
+                            input_video_path=video_path_for_clipping,
+                            weapon_time_sources=weapon_time_sources_for_this_video,
+                            output_folder=video_specific_output_dir_p3,
+                            clip_duration=0.9 # Default duration, or make it a config
+                        )
+                        # We don't have a direct count here unless generate_clips... returns it.
+                        # The logging within generate_clips... will indicate success/failure.
+                        total_clips_made_part3 = 1 # Mark that at least one attempt was made
+                    else:
+                        logic_logger.info(f"Part 3: 没有找到有效的武器时间文件为视频 ID '{video_id}' 进行合并剪辑.")
+
+                # if total_clips_made_part3 == 0 and selected_video_ids_to_process and selected_weapons_for_analysis:
+                # This log might be misleading as generate_clips... does its own detailed logging.
+                # logic_logger.info(f"Part 3: 未能为任何选定视频和武器组合成功启动合并剪辑处理 (请检查子日志).")
+
+            logic_logger.info("--- Part 3 (合并排序武器剪辑) 完成 ---")
+        else:
+            logic_logger.info("--- 跳过 Part 3: 合并排序武器剪辑 ---")
+
+        # ... (Part 4, 5, 6 logic remains the same as they are bow-specific) ...
         
-        if '4' in selected_parts: #
-            if not selected_video_ids_to_process: logic_logger.warning("Part 4: No videos selected. Skipping.") #
+        # Parts 4, 5, 6 remain Bow-specific as per interpretation
+        if '4' in selected_parts: # BOW SPECIFIC
+            if not selected_video_ids_to_process: logic_logger.warning("Part 4 (Bow Infinite Clip): No videos selected. Skipping.") #
             else: #
-                logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频INFINITE剪辑 (Part 4)...") #
+                logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频BOW INFINITE剪辑 (Part 4)...") #
                 processed_clips_in_part4 = 0 #
                 for video_id in selected_video_ids_to_process: #
                     if not os.path.isdir(video_download_base_dir): logic_logger.error(f"Video dir not found for Part 4."); break #
@@ -455,42 +593,44 @@ class VideoProcessingGUI:
                     video_path_for_clipping = os.path.join(video_download_base_dir, filename_in_dir_p4) #
                     video_specific_output_dir_p4 = os.path.join(output_root_folder, video_id) #
                     infinite_txt_path_for_clipping = os.path.join(video_specific_output_dir_p4, "infinite_2.txt") #
-                    if not os.path.exists(video_specific_output_dir_p4): # Check if output dir exists
+                    if not os.path.exists(video_specific_output_dir_p4): #
                         logic_logger.warning(f"Part 4: Output directory '{video_specific_output_dir_p4}' for video ID '{video_id}' not found. Skipping.")
                         continue
                     if not (os.path.exists(infinite_txt_path_for_clipping) and os.path.getsize(infinite_txt_path_for_clipping) > 0): #
-                        logic_logger.warning(f"Part 4: infinite_2.txt for {video_id} at '{infinite_txt_path_for_clipping}' missing or empty. Skipping.")
+                        logic_logger.warning(f"Part 4: infinite_2.txt for {video_id} (Bow) at '{infinite_txt_path_for_clipping}' missing or empty. Skipping.")
                         continue #
                     clip_video_ffmpeg_with_duration(video_path_for_clipping, infinite_txt_path_for_clipping, video_specific_output_dir_p4) #
                     processed_clips_in_part4 +=1 #
-                if processed_clips_in_part4 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 4: 没有选定视频被剪辑。") #
-            logic_logger.info("--- Part 4 (INFINITE剪辑) 完成 ---") #
-        else: logic_logger.info("--- 跳过 Part 4: INFINITE剪辑 ---") #
+                if processed_clips_in_part4 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 4: 没有选定视频被剪辑 (Bow Infinite)。") #
+            logic_logger.info("--- Part 4 (BOW INFINITE剪辑) 完成 ---") #
+        else: logic_logger.info("--- 跳过 Part 4: BOW INFINITE剪辑 ---") #
         
-        if '5' in selected_parts: #
-            if not selected_video_ids_to_process: logic_logger.warning("Part 5: No videos for TXT merge. Skipping.") #
+        if '5' in selected_parts: # BOW SPECIFIC
+            if not selected_video_ids_to_process: logic_logger.warning("Part 5 (Merge Bow TXTs): No videos for TXT merge. Skipping.") #
             else: #
-                logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频ID合并TXT (Part 5)...") #
+                logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频ID合并BOW TXT (Part 5)...") #
                 processed_merges_in_part5 = 0 #
                 for video_id in selected_video_ids_to_process: #
                     video_specific_output_dir_p5 = os.path.join(output_root_folder, video_id) #
                     if not os.path.isdir(video_specific_output_dir_p5): logic_logger.warning(f"Part 5: Output dir for {video_id} ('{video_specific_output_dir_p5}') not found. Skipping."); continue #
-                    logic_logger.info(f"\n[Part 5] 为视频ID {video_id} 合并两个txt") #
-                    shooting_bow_file = os.path.join(video_specific_output_dir_p5, "shooting_bow.txt") #
-                    infinite_file_to_merge = os.path.join(video_specific_output_dir_p5, "infinite_3.txt") #
+                    logic_logger.info(f"\n[Part 5] 为视频ID {video_id} 合并两个Bow txt") #
+                    shooting_bow_file = os.path.join(video_specific_output_dir_p5, "shooting_bow.txt") # Assumes Part 2 created this if bow was selected
+                    infinite_file_to_merge = os.path.join(video_specific_output_dir_p5, "infinite_3.txt") # Assumes this is created if bow analysis ran
+                    
                     if not os.path.exists(shooting_bow_file): #
                         logic_logger.warning(f"Part 5: shooting_bow.txt for {video_id} at '{shooting_bow_file}' missing. Skipping merge for this ID.")
                         continue #
+                    # infinite_3.txt might not exist if no infinite moments, process_and_merge_times should handle this
                     process_and_merge_times(shooting_bow_file, infinite_file_to_merge) #
                     processed_merges_in_part5 +=1 #
-                if processed_merges_in_part5 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 5: 没有选定视频的TXT文件被成功启动合并（或源文件缺失）。") #
-            logic_logger.info("--- Part 5 (合并TXT) 完成 ---") #
-        else: logic_logger.info("--- 跳过 Part 5: 合并 TXT ---") #
+                if processed_merges_in_part5 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 5: 没有选定视频的Bow TXT文件被成功启动合并（或源文件缺失）。") #
+            logic_logger.info("--- Part 5 (合并BOW TXT) 完成 ---") #
+        else: logic_logger.info("--- 跳过 Part 5: 合并 BOW TXT ---") #
         
-        if '6' in selected_parts: #
-            if not selected_video_ids_to_process: logic_logger.warning("Part 6: No videos selected. Skipping.") #
+        if '6' in selected_parts: # BOW SPECIFIC
+            if not selected_video_ids_to_process: logic_logger.warning("Part 6 (Clip Bow Merged): No videos selected. Skipping.") #
             else: #
-                logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频SUM剪辑 (Part 6)...") #
+                logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频BOW SUM剪辑 (Part 6)...") #
                 processed_clips_in_part6 = 0 #
                 for video_id in selected_video_ids_to_process: #
                     if not os.path.isdir(video_download_base_dir): logic_logger.error(f"Video dir not found for Part 6."); break #
@@ -499,17 +639,22 @@ class VideoProcessingGUI:
                     video_path_for_clipping = os.path.join(video_download_base_dir, filename_in_dir_p6) #
                     video_specific_output_dir_p6 = os.path.join(output_root_folder, video_id) #
                     sum_txt_path_for_clipping = os.path.join(video_specific_output_dir_p6, "shooting_bow_sum.txt") #
-                    if not os.path.exists(video_specific_output_dir_p6): # Check if output dir exists
+                    if not os.path.exists(video_specific_output_dir_p6): #
                         logic_logger.warning(f"Part 6: Output directory '{video_specific_output_dir_p6}' for video ID '{video_id}' not found. Skipping.")
                         continue
                     if not (os.path.exists(sum_txt_path_for_clipping) and os.path.getsize(sum_txt_path_for_clipping) > 0): #
                         logic_logger.warning(f"Part 6: shooting_bow_sum.txt for {video_id} at '{sum_txt_path_for_clipping}' missing or empty. Skipping.")
                         continue #
-                    clip_video_ffmpeg(video_path_for_clipping, sum_txt_path_for_clipping, video_specific_output_dir_p6, clip_duration=0.9) #
+                    # clip_video_ffmpeg needs weapon_name, but sum.txt is bow-specific merged.
+                    # For consistency, we can pass "bow_sum" or similar, or adapt clip_video_ffmpeg_merged
+                    # For now, let's use clip_video_ffmpeg_merged for sum.txt as it handles overlapping times.
+                    # clip_video_ffmpeg_merged(video_path_for_clipping, sum_txt_path_for_clipping, video_specific_output_dir_p6, clip_duration=0.9) 
+                    # OR if using clip_video_ffmpeg:
+                    clip_video_ffmpeg(video_path_for_clipping, sum_txt_path_for_clipping, video_specific_output_dir_p6, clip_duration=0.9, weapon_name="bow_sum")
                     processed_clips_in_part6 +=1 #
-                if processed_clips_in_part6 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 6: 没有选定视频被剪辑。") #
-            logic_logger.info("--- Part 6 (SUM剪辑) 完成 ---") #
-        else: logic_logger.info("--- 跳过 Part 6: SUM剪辑 ---") #
+                if processed_clips_in_part6 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 6: 没有选定视频被剪辑 (Bow Merged)。") #
+            logic_logger.info("--- Part 6 (BOW SUM剪辑) 完成 ---") #
+        else: logic_logger.info("--- 跳过 Part 6: BOW SUM剪辑 ---") #
         
         logic_logger.info(f"\n脚本运行结束。选择运行的Parts: {sorted(list(selected_parts))}") #
         self.master.after(0, lambda: self.run_button.config(state=tk.NORMAL)) #

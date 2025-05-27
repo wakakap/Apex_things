@@ -7,6 +7,125 @@ from general_function import (
 
 logger = logging.getLogger(__name__)
 
+def generate_clips_from_multiple_weapon_times(input_video_path, weapon_time_sources, output_folder, clip_duration=0.8):
+    """
+    Generates clips from multiple weapon timestamp files, sorted chronologically with a global clip index.
+
+    Args:
+        input_video_path (str): Path to the input video.
+        weapon_time_sources (list): A list of dictionaries, where each dict is
+                                    {'file_path': str, 'weapon_name': str}.
+        output_folder (str): Folder to save the clips.
+        clip_duration (float): Duration of each clip in seconds.
+    """
+    if not os.path.exists(input_video_path):
+        logger.error(f"错误: 输入视频文件未找到 {input_video_path}")
+        return
+
+    all_timestamps_info = [] # Will store dicts: {'time_sec': float, 'weapon_name': str, 'original_hms': str}
+    
+    for source_info in weapon_time_sources:
+        file_path = source_info['file_path']
+        weapon_name = source_info['weapon_name']
+        
+        if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+            logger.info(f"时间文件 {os.path.basename(file_path)} (武器: {weapon_name}) 不存在或为空，跳过。")
+            continue
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                logger.info(f"读取时间文件: {file_path} (武器: {weapon_name})")
+                for line_num, line_content in enumerate(f, 1):
+                    start_hms = line_content.strip()
+                    if not start_hms:
+                        continue
+                    try:
+                        start_sec = hms_to_seconds(start_hms)
+                        all_timestamps_info.append({
+                            'time_sec': start_sec,
+                            'weapon_name': weapon_name,
+                            'original_hms': start_hms 
+                        })
+                    except ValueError as e:
+                        logger.warning(f"解析时间戳 '{start_hms}' 错误 (来自 {os.path.basename(file_path)}, 行 {line_num}, 武器: {weapon_name}): {e}。跳过此时间戳。")
+        except Exception as e:
+            logger.error(f"读取时间文件 {file_path} (武器: {weapon_name}) 时出错: {e}")
+
+    if not all_timestamps_info:
+        logger.info(f"没有从提供的源文件中收集到有效的时间戳进行剪辑。视频: {os.path.basename(input_video_path)}")
+        return
+
+    # 按时间顺序对所有收集到的时间戳进行排序
+    all_timestamps_info.sort(key=lambda x: x['time_sec'])
+    
+    # 可选：去重逻辑。如果多个武器在完全相同的时间（精确到毫秒）有记录，
+    # 当前逻辑会为每个记录创建一个片段，文件名中包含各自的武器名。
+    # 如果需要基于时间戳去重，则需决定哪个武器优先，或如何处理。
+    # 例如，可以创建一个set of tuples (time_sec, weapon_name) 来确保唯一性，
+    # 但这可能会丢失来自不同武器的相同时间戳。目前保持原样，按排序处理。
+
+    os.makedirs(output_folder, exist_ok=True)
+    video_name_no_ext = os.path.splitext(os.path.basename(input_video_path))[0]
+    input_video_extension = os.path.splitext(input_video_path)[1]
+    if not input_video_extension: 
+        logger.warning(f"警告: 输入视频 {input_video_path} 没有文件扩展名。默认使用 .mp4 输出。")
+        input_video_extension = ".mp4"
+
+    logger.info(f"开始合并剪辑视频: {os.path.basename(input_video_path)}, "
+                  f"共 {len(all_timestamps_info)} 个候选片段 (来自所有选定武器, 已排序), "
+                  f"片段时长: {clip_duration}s")
+    
+    clips_created_count = 0
+    for i, ts_info in enumerate(all_timestamps_info):
+        start_sec_float = ts_info['time_sec']
+        current_weapon_name = ts_info['weapon_name']
+        original_hms_for_log = ts_info['original_hms'] # 用于日志记录
+        
+        formatted_start_time_for_ffmpeg = seconds_to_hms(start_sec_float)
+        safe_time_str_for_filename = formatted_start_time_for_ffmpeg.replace(':', '').replace('.', '')
+
+        # 使用全局索引 i+1 来命名片段序号
+        output_clip_name = f"{video_name_no_ext}_{safe_time_str_for_filename}_clip_{i+1}_{current_weapon_name}{input_video_extension}"
+        output_clip_path = os.path.join(output_folder, output_clip_name)
+
+        if os.path.exists(output_clip_path):
+            logger.info(f"片段 {output_clip_path} 已存在，跳过。")
+            continue
+        
+        command = [
+            'ffmpeg',
+            '-ss', formatted_start_time_for_ffmpeg, 
+            '-i', input_video_path,                 
+            '-t', str(clip_duration),               
+            '-codec', 'copy',                       
+            '-y',                                   
+            output_clip_path
+        ]
+        
+        try:
+            logger.info(f"执行剪辑命令 ({i+1}/{len(all_timestamps_info)} for {current_weapon_name} @ {original_hms_for_log}): {' '.join(command)}") 
+            process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            
+            if process.stdout and process.stdout.strip():
+                logger.debug(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
+            if process.stderr and process.stderr.strip():
+                logger.debug(f"FFmpeg STDERR for {output_clip_name}:\n{process.stderr.strip()}") # FFmpeg info often goes to stderr
+            logger.info(f"成功剪辑并保存: {output_clip_path}")
+            clips_created_count += 1
+        except subprocess.CalledProcessError as e:
+            logger.error(f"剪辑视频时出错 (片段 {i+1}, 起始: {formatted_start_time_for_ffmpeg}, 武器: {current_weapon_name}): {e}")
+            logger.error(f"命令: {' '.join(e.cmd)}")
+            if e.stderr: logger.error(f"FFmpeg错误输出: {e.stderr.strip()}")
+            if e.stdout: logger.error(f"FFmpeg输出: {e.stdout.strip()}") # Log stdout on error too
+        except Exception as e: 
+            logger.error(f"处理片段 {i+1} (起始: {formatted_start_time_for_ffmpeg}, 武器: {current_weapon_name}) 时发生未知错误: {e}")
+
+    if clips_created_count > 0:
+        logger.info(f"合并剪辑完成。共创建 {clips_created_count} 个新片段。")
+    elif all_timestamps_info: # Timestamps were present, but no clips made
+        logger.info(f"未创建新片段 (可能所有目标片段已存在或在处理过程中发生错误)。")
+    # No specific message if all_timestamps_info was empty, already logged above.
+
+
 def clip_video_ffmpeg(input_video_path, shooting_times_file, output_folder, clip_duration=0.8):
     if not os.path.exists(shooting_times_file):
         logger.info(f"错误: shooting_bow.txt 文件未找到 {shooting_times_file}")
@@ -266,8 +385,6 @@ def clip_video_ffmpeg_merged(input_video_path, shooting_times_file, output_folde
     else:
         logger.info(f"视频剪辑完成。共生成 {processed_groups_count} 个（合并后）片段。")
 
-
-
 def clip_video_ffmpeg_with_duration(input_video_path, shooting_times_file, output_folder):
     if not os.path.exists(input_video_path):
         logger.error(f"错误: 输入视频文件未找到 {input_video_path}")
@@ -392,8 +509,6 @@ def clip_video_ffmpeg_with_duration(input_video_path, shooting_times_file, outpu
             failed_clips += 1
             
     logger.info(f"剪辑处理完成。成功剪辑 {successful_clips} 个片段，失败 {failed_clips} 个片段。")
-
-# --- Main Processing Function ---
 
 def process_and_merge_times(shooting_times_file, infinite_file2):
 
