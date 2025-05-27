@@ -12,16 +12,33 @@ logger = logging.getLogger(__name__)
 # roi_key is currently not used as prompt stated BOW_ROI coords are used for all weapon activation.
 # display_name is for the GUI.
 WEAPON_METADATA = {
-    "bow": {"suffix": "bow", "has_infinite": True, "display_name": "Bocek Bow"},
-    "r3030": {"suffix": "3030", "has_infinite": False, "display_name": "30-30 Repeater"},
-    "charge_rifle": {"suffix": "charge", "has_infinite": False, "display_name": "Charge Rifle"},
-    "eva8": {"suffix": "eva", "has_infinite": False, "display_name": "EVA-8 Auto"},
-    "kraber": {"suffix": "kraber", "has_infinite": False, "display_name": "Kraber"},
-    "longbow": {"suffix": "longbow", "has_infinite": False, "display_name": "Longbow DMR"},
-    "mastiff": {"suffix": "mastiff", "has_infinite": False, "display_name": "Mastiff"},
-    "peacekeeper": {"suffix": "PK_red", "has_infinite": False, "display_name": "Peacekeeper (Red)"},
-    "sentinel": {"suffix": "sentinel", "has_infinite": False, "display_name": "Sentinel"},
-    "wingman": {"suffix": "wingman", "has_infinite": False, "display_name": "Wingman"},
+    # Group 1: Standard scan logic, bow has_infinite
+    "bow": {"suffix": "bow", "has_infinite": True, "display_name": "Bocek Bow", "scan_logic_type": "standard"},
+    "kraber": {"suffix": "kraber", "has_infinite": False, "display_name": "Kraber", "scan_logic_type": "standard"},
+    "charge_rifle": {"suffix": "charge", "has_infinite": False, "display_name": "Charge Rifle", "scan_logic_type": "standard"},
+    "sentinel": {"suffix": "sentinel", "has_infinite": False, "display_name": "Sentinel", "scan_logic_type": "standard"},
+    "peacekeeper": {"suffix": "pk_red", "has_infinite": False, "display_name": "Peacekeeper (Red)", "scan_logic_type": "standard"},
+    "mastiff": {"suffix": "mastiff", "has_infinite": False, "display_name": "Mastiff", "scan_logic_type": "standard"},
+    "longbow": {"suffix": "longbow", "has_infinite": False, "display_name": "Longbow DMR", "scan_logic_type": "standard"},
+
+    # Group 2: Rapid-fire scan logic, no infinite
+    "eva8": {"suffix": "eva", "has_infinite": False, "display_name": "EVA-8 Auto", "scan_logic_type": "rapid_fire"},
+    "mozambique_double": {"suffix": "mozambique_double", "has_infinite": False, "display_name": "Mozambique (Double)", "scan_logic_type": "rapid_fire"},
+    "r3030": {"suffix": "3030", "has_infinite": False, "display_name": "30-30 Repeater", "scan_logic_type": "rapid_fire"}, # Moved to Group 2
+    "wingman": {"suffix": "wingman", "has_infinite": False, "display_name": "Wingman", "scan_logic_type": "rapid_fire"}, # Moved to Group 2
+    "g7": {"suffix": "g7", "has_infinite": False, "display_name": "G7 Scout", "scan_logic_type": "rapid_fire"},
+    "rampage": {"suffix": "rampage", "has_infinite": False, "display_name": "Rampage LMG", "scan_logic_type": "rapid_fire"},
+    "p2020_double": {"suffix": "p2020_double", "has_infinite": False, "display_name": "P2020 (Double)", "scan_logic_type": "rapid_fire"},
+    "hemlok": {"suffix": "hemlok", "has_infinite": False, "display_name": "Hemlok", "scan_logic_type": "rapid_fire"},
+    "spitfire": {"suffix": "spitfire", "has_infinite": False, "display_name": "Spitfire", "scan_logic_type": "rapid_fire"},
+    "nemesis": {"suffix": "nemesis", "has_infinite": False, "display_name": "Nemesis", "scan_logic_type": "rapid_fire"},
+    "flatline": {"suffix": "flatline", "has_infinite": False, "display_name": "Flatline", "scan_logic_type": "rapid_fire"},
+    "havoc": {"suffix": "havoc", "has_infinite": False, "display_name": "Havoc", "scan_logic_type": "rapid_fire"},
+    "re45": {"suffix": "re45", "has_infinite": False, "display_name": "RE-45 Auto", "scan_logic_type": "rapid_fire"},
+    "r301": {"suffix": "r301", "has_infinite": False, "display_name": "R-301 Carbine", "scan_logic_type": "rapid_fire"},
+    "devotion": {"suffix": "devotion", "has_infinite": False, "display_name": "Devotion LMG", "scan_logic_type": "rapid_fire"},
+    "car": {"suffix": "car", "has_infinite": False, "display_name": "C.A.R. SMG", "scan_logic_type": "rapid_fire"},
+    "r99": {"suffix": "r99", "has_infinite": False, "display_name": "R-99 SMG", "scan_logic_type": "rapid_fire"},
     # Add other weapons here if their templates (e.g. template_g7.png -> "g7": {"suffix": "g7", ...}) exist
 }
 
@@ -212,18 +229,18 @@ def read_number_two(frame, full_roi_x1, full_roi_y1, full_roi_x2, full_roi_y2, m
 
 
 def find_shooting_moments(video_path,
-                          root_pic_template_dir, # Base directory for all templates "E:\\mande\\0_PLAN\\pic_template"
-                          selected_weapon_names, # List of weapon internal names selected by user
-                          video_output_dir, # e.g., ".../clips_output/videoid/"
-                          infinite_symbol_template_path, # Specific to bow
-                          weapon_activation_similarity_threshold, # General threshold for activating any weapon
-                          similarity_threshold_infinite, # Specific to bow's infinite symbol
+                          root_pic_template_dir,
+                          selected_weapon_names,
+                          video_output_dir,
+                          infinite_symbol_template_path,
+                          weapon_activation_similarity_threshold,
+                          similarity_threshold_infinite,
                           number_roi_x1, number_roi_y1, number_roi_x2, number_roi_y2, mid_split_x,
-                          weapon_roi_x1, weapon_roi_y1, weapon_roi_x2, weapon_roi_y2, # Used for all weapon activation
-                          infinite_roi_x1, infinite_roi_y1, infinite_roi_x2, infinite_roi_y2, # Specific to bow
+                          weapon_roi_x1, weapon_roi_y1, weapon_roi_x2, weapon_roi_y2,
+                          infinite_roi_x1, infinite_roi_y1, infinite_roi_x2, infinite_roi_y2,
                           coarse_interval_seconds=3.0,
                           fine_interval_seconds=0.1, start_time="00:00:00.000"):
-    version_tag = "20250527_MultiWeapon"
+    version_tag = "20250528_MultiWeaponLogic" # 更新版本标签
     logger.info(f"\n[{version_tag}] Initiating for video: {video_path}")
     logger.info(f"分析的武器: {selected_weapon_names}")
     logger.info(f"武器激活ROI (x1,y1,x2,y2): ({weapon_roi_x1},{weapon_roi_y1},{weapon_roi_x2},{weapon_roi_y2})")
@@ -255,38 +272,36 @@ def find_shooting_moments(video_path,
     frame_skip_fine = max(1, int(fps * fine_interval_seconds))
     logger.info(f"粗步长: {frame_skip_coarse} frames, 精步长: {frame_skip_fine} frames")
 
-    # Per-weapon state variables, only for selected weapons
     shooting_times_by_weapon = {name: [] for name in selected_weapon_names}
-    prev_number_coarse_by_weapon = {name: 10000 for name in selected_weapon_names} # Using a large number unlikely to be an ammo count
+    prev_number_coarse_by_weapon = {name: 10000 for name in selected_weapon_names}
     prev_number_coarse_frame_by_weapon = {name: 0 for name in selected_weapon_names}
-    last_known_active_frame_by_weapon = {name: 0 for name in selected_weapon_names} # Track when a weapon was last confirmed active
+    last_known_active_frame_by_weapon = {name: 0 for name in selected_weapon_names}
 
-    # Bow-specific state (if bow is selected)
     infinite_symbo_times_bow = []
     prev_frame_had_infinite_coarse_bow = False
-    prev_infinite_coarse_frame_bow = 0 # Frame where bow infinite was last active in coarse scan
+    # prev_infinite_coarse_frame_bow = 0 # 似乎未使用，可以考虑移除
 
     current_frame_num = int(hms_to_seconds(start_time) * fps)
     last_coarse_log_frame = -frame_skip_coarse * 10 
     
-    WRITE_TXT_COUNTS = 20 # Write to file every N coarse iterations to save progress
+    WRITE_TXT_COUNTS = 20 
     coarse_loop_iteration_counter = 0
 
-    # Pre-load all weapon template paths (from WEAPON_METADATA for all known weapons)
     all_weapon_template_paths = {}
-    for name, meta in WEAPON_METADATA.items():
+    # 确保 WEAPON_METADATA 是最新的，包含所有武器及其 'suffix'
+    for name, meta in WEAPON_METADATA.items(): 
         path = os.path.join(root_pic_template_dir, f"template_{meta['suffix']}.png")
         if os.path.exists(path):
             all_weapon_template_paths[name] = path
         else:
-            logger.warning(f"武器模板缺失: {path} for {name}. 该武器将无法被检测。")
+            logger.warning(f"武器模板缺失: {path} for {name} (display: {meta.get('display_name', 'N/A')}). 该武器将无法被检测。")
+
 
     if not any(name in all_weapon_template_paths for name in selected_weapon_names):
         logger.error("所有选定武器的模板均缺失！无法继续分析。")
         cap.release()
         return
 
-    # Prepare weapon ROI for preprocessing once per frame
     roi_x1_w, roi_y1_w, roi_x2_w, roi_y2_w = int(weapon_roi_x1), int(weapon_roi_y1), int(weapon_roi_x2), int(weapon_roi_y2)
 
     while current_frame_num < total_frames:
@@ -297,16 +312,14 @@ def find_shooting_moments(video_path,
             break
         
         timestamp_sec = current_frame_num / fps
-        if current_frame_num >= last_coarse_log_frame + (frame_skip_coarse * 5) : # Log less frequently
+        if current_frame_num >= last_coarse_log_frame + (frame_skip_coarse * 5) : 
             active_prev_numbers_str = ", ".join([f"{name}: {prev_number_coarse_by_weapon.get(name, 'N/A')}" for name in selected_weapon_names])
             logger.info(f"[Analysis 粗] : Frame {current_frame_num}/{total_frames} ({seconds_to_hms(timestamp_sec)}), 上个数字 (已选武器): {active_prev_numbers_str}")
             last_coarse_log_frame = current_frame_num
 
-        # --- Determine active weapon ---
         active_weapon_name_this_frame = None
         max_iou_score = -1.0
         
-        # Extract and preprocess weapon ROI once
         fh_frame, fw_frame = frame.shape[:2]
         if not (0 <= roi_x1_w < fw_frame and 0 <= roi_y1_w < fh_frame and \
                   roi_x1_w < roi_x2_w and roi_y1_w < roi_y2_w and \
@@ -326,16 +339,15 @@ def find_shooting_moments(video_path,
         gray_weapon_roi = cv2.cvtColor(weapon_roi_current_frame, cv2.COLOR_BGR2GRAY)
         _, preprocessed_weapon_roi_otsu = cv2.threshold(gray_weapon_roi, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-        for w_name, w_template_path in all_weapon_template_paths.items(): # Check against ALL known weapon templates
+        for w_name, w_template_path in all_weapon_template_paths.items():
             iou_score = compare_score_iou(preprocessed_weapon_roi_otsu, w_template_path)
             if iou_score > max_iou_score:
                 max_iou_score = iou_score
-                if iou_score > weapon_activation_similarity_threshold: # Must pass threshold to be considered
+                if iou_score > weapon_activation_similarity_threshold:
                     active_weapon_name_this_frame = w_name
                 else:
-                    active_weapon_name_this_frame = None # Score too low even if it's max
+                    active_weapon_name_this_frame = None 
 
-        # --- Process if an active weapon (that is also selected by user) is found ---
         if active_weapon_name_this_frame and active_weapon_name_this_frame in selected_weapon_names:
             current_active_weapon_name = active_weapon_name_this_frame
             last_known_active_frame_by_weapon[current_active_weapon_name] = current_frame_num
@@ -343,13 +355,12 @@ def find_shooting_moments(video_path,
             fine_scan_reason = None
             triggering_weapon_for_fine_scan = None
             
-            # Read number for the current active weapon
             current_number_coarse = read_number_two(frame, number_roi_x1, number_roi_y1, number_roi_x2, number_roi_y2, mid_split_x, root_pic_template_dir)
             prev_number_for_this_weapon = prev_number_coarse_by_weapon[current_active_weapon_name]
 
             detected_shot_in_coarse = False
             if current_number_coarse is not None and prev_number_for_this_weapon is not None:
-                if current_number_coarse != prev_number_for_this_weapon:
+                if current_number_coarse != prev_number_for_this_weapon: # 基本的数字变化检测
                     detected_shot_in_coarse = True
             
             if detected_shot_in_coarse:
@@ -357,49 +368,43 @@ def find_shooting_moments(video_path,
                 triggering_weapon_for_fine_scan = current_active_weapon_name
                 logger.info(f"[Analysis 粗] Weapon '{current_active_weapon_name}' 数字变化触发精扫描 @ F{current_frame_num} ({seconds_to_hms(timestamp_sec)}). Num: {prev_number_for_this_weapon} -> {current_number_coarse}.")
             
-            # Bow-specific infinite check
             elif current_active_weapon_name == "bow" and WEAPON_METADATA["bow"]["has_infinite"]:
                 is_infinite_active = check_roi_against_template(frame, infinite_symbol_template_path, 
                                                                 infinite_roi_x1, infinite_roi_y1, infinite_roi_x2, infinite_roi_y2, 
                                                                 threshold=similarity_threshold_infinite)
                 if not prev_frame_had_infinite_coarse_bow and is_infinite_active:
                     fine_scan_reason = "infinite_bow"
-                    triggering_weapon_for_fine_scan = "bow" # Fine scan still for bow context
-                    bow_infinite_time = max(0, timestamp_sec) # Record time of infinite start
+                    triggering_weapon_for_fine_scan = "bow" 
+                    bow_infinite_time = max(0, timestamp_sec) 
                     if bow_infinite_time not in infinite_symbo_times_bow:
                         infinite_symbo_times_bow.append(bow_infinite_time)
                         logger.info(f"[Analysis 粗] Bow ∞时刻 记录下 {seconds_to_hms(bow_infinite_time)} @ F{current_frame_num}.")
             
-            # --- Fine Scan Logic ---
             if fine_scan_reason and triggering_weapon_for_fine_scan:
-                # Determine scan range
-                # Scan from slightly before the previous number change of *this* weapon, up to current frame
                 fine_scan_start_frame = max(0, prev_number_coarse_frame_by_weapon[triggering_weapon_for_fine_scan]) 
                 fine_scan_end_frame = min(total_frames - 1, current_frame_num)
                 
-                # Initial prev_number_fine for the scan. If it's a shot, use the new coarse number.
-                # If it's infinite, the number might not be relevant, but we need a placeholder.
-                prev_number_fine_scan = current_number_coarse if fine_scan_reason == "shot" else -5 # Arbitrary for infinite start
+                prev_number_fine_scan = current_number_coarse if fine_scan_reason == "shot" else -5 
 
-                logger.info(f"[Analysis 粗] 精扫描初始化 for '{triggering_weapon_for_fine_scan}' (Reason: {fine_scan_reason.upper()}): "
+                weapon_meta_fine_scan = WEAPON_METADATA.get(triggering_weapon_for_fine_scan, {})
+                current_scan_logic = weapon_meta_fine_scan.get("scan_logic_type", "standard")
+
+                logger.info(f"[Analysis 粗] 精扫描初始化 for '{triggering_weapon_for_fine_scan}' (Reason: {fine_scan_reason.upper()}, Logic: {current_scan_logic.upper()}): "
                             f"范围 [{fine_scan_start_frame}, {fine_scan_end_frame}] "
                             f"({seconds_to_hms(fine_scan_start_frame/fps)} to {seconds_to_hms(fine_scan_end_frame/fps)}). "
                             f"起始精扫数字: {prev_number_fine_scan}")
 
                 weapon_template_for_fine_scan = all_weapon_template_paths.get(triggering_weapon_for_fine_scan)
 
-                # Reversed Scan first (from fine_scan_end_frame down to fine_scan_start_frame)
-                last_processed_fine_frame_rev = fine_scan_end_frame # To ensure loop runs correctly
+                last_processed_fine_frame_rev = fine_scan_end_frame 
                 for fn_fine in range(fine_scan_end_frame, max(0, fine_scan_end_frame - frame_skip_coarse - frame_skip_fine-1) , -frame_skip_fine):
-                    if fn_fine < 0 or fn_fine >= last_processed_fine_frame_rev : break # Avoid re-processing or going out of bounds
+                    if fn_fine < 0 or fn_fine >= last_processed_fine_frame_rev : break 
                     last_processed_fine_frame_rev = fn_fine
                     cap.set(cv2.CAP_PROP_POS_FRAMES, fn_fine)
                     ret_f, frame_f = cap.read()
                     if not ret_f: continue
                     ts_fine_sec = fn_fine / fps
 
-                    # Check if the *triggering weapon* is active in this fine frame
-                    # Re-extract and preprocess ROI for the fine frame
                     weapon_roi_fine = frame_f[roi_y1_w:roi_y2_w, roi_x1_w:roi_x2_w]
                     if weapon_roi_fine.size == 0: continue
                     gray_weapon_roi_fine = cv2.cvtColor(weapon_roi_fine, cv2.COLOR_BGR2GRAY)
@@ -414,33 +419,30 @@ def find_shooting_moments(video_path,
                     if is_trigger_weapon_active_fine:
                         current_number_fine = read_number_two(frame_f, number_roi_x1, number_roi_y1, number_roi_x2, number_roi_y2, mid_split_x, root_pic_template_dir)
                         if current_number_fine is not None:
+                            shot_detected_reversed = False
                             if prev_number_fine_scan is not None:
-                                if prev_number_fine_scan + 1 == current_number_fine: # Detects number increase (shot if reversed)
-                                    shot_time = max(0, ts_fine_sec - 0.3) # Record time slightly before
-                                    if shot_time not in shooting_times_by_weapon[triggering_weapon_for_fine_scan]:
-                                        shooting_times_by_weapon[triggering_weapon_for_fine_scan].append(shot_time)
-                                        logger.info(f"[Analysis 精] Weapon '{triggering_weapon_for_fine_scan}' 检测到射击! F {fn_fine} ({seconds_to_hms(ts_fine_sec)}). Num: {current_number_fine} -> {prev_number_fine_scan}. 记录: {seconds_to_hms(shot_time)}")
+                                if current_scan_logic == "standard":
+                                    # prev_number_fine_scan is number at later time in video, current_number_fine is earlier
+                                    if prev_number_fine_scan + 1 == current_number_fine:
+                                        shot_detected_reversed = True
+                                elif current_scan_logic == "rapid_fire":
+                                    # current_number_fine (ammo earlier) - prev_number_fine_scan (ammo later) should be 1 to 3
+                                    if 0 < (current_number_fine - prev_number_fine_scan) <= 3:
+                                        shot_detected_reversed = True
                             
-                            # Stop if we found the number that was active *before* the coarse jump for this weapon
+                            if shot_detected_reversed:
+                                shot_time = max(0, ts_fine_sec - 0.3) 
+                                if shot_time not in shooting_times_by_weapon[triggering_weapon_for_fine_scan]:
+                                    shooting_times_by_weapon[triggering_weapon_for_fine_scan].append(shot_time)
+                                    logger.info(f"[Analysis 精 ({current_scan_logic.upper()})] Weapon '{triggering_weapon_for_fine_scan}' 检测到射击! F {fn_fine} ({seconds_to_hms(ts_fine_sec)}). Num: {current_number_fine} -> {prev_number_fine_scan}. 记录: {seconds_to_hms(shot_time)}")
+                            
                             if current_number_fine == prev_number_coarse_by_weapon[triggering_weapon_for_fine_scan] and fine_scan_reason == "shot":
-                                logger.info(f"[Analysis 精] 反向扫描时找到粗扫描的起始数字 {current_number_fine}. Weapon '{triggering_weapon_for_fine_scan}'.")
-                                # prev_number_fine_scan = current_number_fine # Update for forward scan start
-                                break # Break from reversed fine scan
-                            prev_number_fine_scan = current_number_fine # Update for next iteration
-                        # else: # Is not a number (could be infinite for bow, or other symbol)
-                            # if triggering_weapon_for_fine_scan == "bow" and WEAPON_METADATA["bow"]["has_infinite"]:
-                                # Bow specific logic for infinite during fine scan could be added if needed
-                                # logger.debug(f"[Analysis 精] Weapon '{triggering_weapon_for_fine_scan}' at F {fn_fine} ({seconds_to_hms(ts_fine_sec)}) 不是数字.")
-                    # else: # Triggering weapon not active in this fine frame
-                        # logger.debug(f"[Analysis 精] Weapon '{triggering_weapon_for_fine_scan}' 未激活 at F {fn_fine} ({seconds_to_hms(ts_fine_sec)})")
+                                logger.info(f"[Analysis 精 ({current_scan_logic.upper()})] 反向扫描时找到粗扫描的起始数字 {current_number_fine}. Weapon '{triggering_weapon_for_fine_scan}'.")
+                                break 
+                            prev_number_fine_scan = current_number_fine 
                 
-                # Forward scan (from fine_scan_start_frame up to where reverse scan effectively stopped or end_frame)
-                # Reset prev_number_fine_scan to the number found at the earliest point of the reverse scan, or the original prev_number_coarse
-                # This part needs careful state management from reversed to forward.
-                # For simplicity, could re-initialize prev_number_fine_scan or use a different variable.
-                # Let's restart prev_number_fine_scan from the state before the coarse jump that triggered this.
                 prev_number_fine_scan_fwd = prev_number_coarse_by_weapon[triggering_weapon_for_fine_scan]
-                logger.info(f"[Analysis 精] 正向扫描开始. Weapon '{triggering_weapon_for_fine_scan}'. 上一个数字重置为: {prev_number_fine_scan_fwd}")
+                logger.info(f"[Analysis 精 ({current_scan_logic.upper()})] 正向扫描开始. Weapon '{triggering_weapon_for_fine_scan}'. 上一个数字重置为: {prev_number_fine_scan_fwd}")
                 
                 for fn_fine in range(fine_scan_start_frame, min(min(total_frames,fine_scan_start_frame + frame_skip_coarse + frame_skip_fine + 1),last_processed_fine_frame_rev+1), frame_skip_fine):
                     if fn_fine < 0: continue
@@ -463,70 +465,80 @@ def find_shooting_moments(video_path,
                     if is_trigger_weapon_active_fine_fwd:
                         current_number_fine_fwd = read_number_two(frame_f, number_roi_x1, number_roi_y1, number_roi_x2, number_roi_y2, mid_split_x, root_pic_template_dir)
                         if current_number_fine_fwd is not None:
-                            if prev_number_fine_scan_fwd is not None:
-                                if prev_number_fine_scan_fwd - 1 == current_number_fine_fwd: # Detects number decrease (shot)
-                                    shot_time = max(0, ts_fine_sec - 0.3)
-                                    if shot_time not in shooting_times_by_weapon[triggering_weapon_for_fine_scan]:
-                                        shooting_times_by_weapon[triggering_weapon_for_fine_scan].append(shot_time)
-                                        logger.info(f"[Analysis 精] Weapon '{triggering_weapon_for_fine_scan}' 检测到射击! F {fn_fine} ({seconds_to_hms(ts_fine_sec)}). Num: {prev_number_fine_scan_fwd} -> {current_number_fine_fwd}. 记录: {seconds_to_hms(shot_time)}")
+                            shot_detected_forward = False
+                            if prev_number_fine_scan_fwd is not None: 
+                                if current_scan_logic == "standard":
+                                    # prev_number_fine_scan_fwd is number at earlier time, current_number_fine_fwd is later
+                                    if prev_number_fine_scan_fwd - 1 == current_number_fine_fwd:
+                                        shot_detected_forward = True
+                                elif current_scan_logic == "rapid_fire":
+                                    # prev_number_fine_scan_fwd (ammo earlier) - current_number_fine_fwd (ammo later) should be 1 to 3
+                                    if 0 < (prev_number_fine_scan_fwd - current_number_fine_fwd) <= 3:
+                                        shot_detected_forward = True
                             
-                            if current_number_fine_fwd == current_number_coarse and fine_scan_reason == "shot": # Stop if we found the number from the coarse scan end
-                                logger.info(f"[Analysis 精] 正向扫描时找到粗扫描的结束数字 {current_number_fine_fwd}. Weapon '{triggering_weapon_for_fine_scan}'.")
-                                break # Break from forward fine scan
+                            if shot_detected_forward:
+                                shot_time = max(0, ts_fine_sec - 0.3)
+                                if shot_time not in shooting_times_by_weapon[triggering_weapon_for_fine_scan]:
+                                    shooting_times_by_weapon[triggering_weapon_for_fine_scan].append(shot_time)
+                                    logger.info(f"[Analysis 精 ({current_scan_logic.upper()})] Weapon '{triggering_weapon_for_fine_scan}' 检测到射击! F {fn_fine} ({seconds_to_hms(ts_fine_sec)}). Num: {prev_number_fine_scan_fwd} -> {current_number_fine_fwd}. 记录: {seconds_to_hms(shot_time)}")
+                            
+                            if current_number_fine_fwd == current_number_coarse and fine_scan_reason == "shot": 
+                                logger.info(f"[Analysis 精 ({current_scan_logic.upper()})] 正向扫描时找到粗扫描的结束数字 {current_number_fine_fwd}. Weapon '{triggering_weapon_for_fine_scan}'.")
+                                break 
                             prev_number_fine_scan_fwd = current_number_fine_fwd
-            # --- End Fine Scan ---
-
-            # Update coarse state for the active weapon
+            
             if current_number_coarse is not None:
                 prev_number_coarse_by_weapon[current_active_weapon_name] = current_number_coarse
                 prev_number_coarse_frame_by_weapon[current_active_weapon_name] = current_frame_num
             
-            if current_active_weapon_name == "bow" and WEAPON_METADATA["bow"]["has_infinite"] and fine_scan_reason == "infinite_bow":
-                prev_frame_had_infinite_coarse_bow = True # Set this based on confirmed infinite activity
-                prev_infinite_coarse_frame_bow = current_frame_num
-            elif current_active_weapon_name == "bow": # If bow is active but not infinite
+            if current_active_weapon_name == "bow" and WEAPON_METADATA["bow"]["has_infinite"] and fine_scan_reason == "infinite_bow": # This was already specific to bow infinite detection
+                prev_frame_had_infinite_coarse_bow = True 
+                # prev_infinite_coarse_frame_bow = current_frame_num # Re-consider if this is needed
+            elif current_active_weapon_name == "bow": 
                 prev_frame_had_infinite_coarse_bow = False
-                # prev_infinite_coarse_frame_bow = current_frame_num # Reset or not? This indicates last check. Let's update.
-        # else: # No weapon active, or active weapon not in selected list
-            # If it was bow and infinite was active, but now bow is not active, reset bow's infinite flag
-            # if prev_frame_had_infinite_coarse_bow and active_weapon_name_this_frame != "bow":
-            #    prev_frame_had_infinite_coarse_bow = False
-            #    logger.debug(f"[Analysis 粗] Bow不再是激活武器, 重置无限符号标记 @ F{current_frame_num}")
-            # This reset might be too aggressive if a single frame flickers.
-            # The logic above: `elif current_active_weapon_name == "bow": prev_frame_had_infinite_coarse_bow = False` handles this when bow is active but not infinite.
-            pass
+        
+        else: # No weapon active, or active weapon not selected by user
+            # This logic ensures that if the bow was showing infinite, and then ceases to be the active weapon,
+            # the infinite flag is reset. This seems reasonable.
+            if prev_frame_had_infinite_coarse_bow and active_weapon_name_this_frame != "bow":
+               prev_frame_had_infinite_coarse_bow = False
+               # logger.debug(f"[Analysis 粗] Bow不再是激活武器或未被选择, 重置无限符号标记 @ F{current_frame_num}")
 
 
-        # --- Periodic Write to TXT ---
         if coarse_loop_iteration_counter > 0 and coarse_loop_iteration_counter % WRITE_TXT_COUNTS == 0:
             for w_name_selected in selected_weapon_names:
                 if shooting_times_by_weapon[w_name_selected]:
-                    current_shooting_output_txt_path = os.path.join(video_output_dir, f"shooting_{w_name_selected}.txt")
+                    current_shooting_output_txt_path = os.path.join(video_output_dir, f"shooting_{WEAPON_METADATA[w_name_selected]['suffix']}.txt") # Use suffix for filename consistency if desired, or just w_name_selected
                     unique_times_to_write = list(set(shooting_times_by_weapon[w_name_selected]))
-                    with open(current_shooting_output_txt_path, 'a') as f: # 因为可能中断继续的情况，用续写的方式更好
+                    
+                    # Read existing times to avoid duplicates if appending, or ensure overwrite is intended.
+                    # Current final write logic overwrites, so periodic append is okay.
+                    with open(current_shooting_output_txt_path, 'a', encoding='utf-8') as f: 
                         for t_shot in unique_times_to_write:
                             f.write(f"{seconds_to_hms(t_shot)}\n")
                     logger.info(f"写入 {len(unique_times_to_write)} 个 {w_name_selected} 射击时刻到 {current_shooting_output_txt_path} (临时)")
-                    shooting_times_by_weapon[w_name_selected].clear() # 清除
+                    shooting_times_by_weapon[w_name_selected].clear() 
 
-            if "bow" in selected_weapon_names and infinite_symbo_times_bow:
-                current_infinite_output_txt_path = os.path.join(video_output_dir, "infinite.txt") # Bow specific filename
+            if "bow" in selected_weapon_names and WEAPON_METADATA["bow"]["has_infinite"] and infinite_symbo_times_bow:
+                current_infinite_output_txt_path = os.path.join(video_output_dir, "infinite.txt") 
                 unique_inf_times = list(set(infinite_symbo_times_bow))
-                with open(current_infinite_output_txt_path, 'a') as f: 
+                with open(current_infinite_output_txt_path, 'a', encoding='utf-8') as f: 
                     for t_inf in unique_inf_times:
                         f.write(f"{seconds_to_hms(t_inf)}\n")
                 logger.info(f"写入 {len(unique_inf_times)} 个 Bow ∞ 时刻到 {current_infinite_output_txt_path} (临时)")
-                infinite_symbo_times_bow.clear() # 清除
+                infinite_symbo_times_bow.clear()
 
         coarse_loop_iteration_counter += 1
         current_frame_num += frame_skip_coarse
 
     cap.release()
 
-    # --- Final Write to TXT files ---
-    all_combined_shooting_times = [] # For all_weapons.txt
+    all_combined_shooting_times = [] 
 
     for w_name_final in selected_weapon_names:
+        # Use weapon's suffix from WEAPON_METADATA for the output filename, or just w_name_final if preferred
+        # Original code in GUI uses `shooting_{weapon_name_to_clip}.txt` where weapon_name_to_clip is the internal key.
+        # For consistency, let's stick to internal key for filename.
         final_shooting_output_txt_path = os.path.join(video_output_dir, f"shooting_{w_name_final}.txt")
         existing_times_sec = []
         if os.path.exists(final_shooting_output_txt_path):
@@ -543,31 +555,42 @@ def find_shooting_moments(video_path,
 
         if not unique_shooting_times_w:
             logger.info(f"武器 '{w_name_final}' 没有检测到射击时刻。{final_shooting_output_txt_path} 将为空或不创建。")
-            if os.path.exists(final_shooting_output_txt_path): # Remove if empty after processing
-                try: os.remove(final_shooting_output_txt_path)
+            if os.path.exists(final_shooting_output_txt_path): 
+                try: 
+                    # Only remove if it's truly empty or only contains whitespace after this session
+                    if os.path.getsize(final_shooting_output_txt_path) == 0:
+                        os.remove(final_shooting_output_txt_path)
+                    else: # Check content if not zero size
+                        with open(final_shooting_output_txt_path, 'r', encoding='utf-8') as f_check:
+                            if not f_check.read().strip():
+                                os.remove(final_shooting_output_txt_path)
+
                 except OSError as e: logger.error(f"无法删除空的 {final_shooting_output_txt_path}: {e}")
         else:
             logger.info(f"武器 '{w_name_final}' 检测到 {len(unique_shooting_times_w)} 个独立射击时刻。")
-            with open(final_shooting_output_txt_path, 'w') as f:
+            with open(final_shooting_output_txt_path, 'w', encoding='utf-8') as f:
                 for t_shot in unique_shooting_times_w:
                     f.write(f"{seconds_to_hms(t_shot)}\n")
             logger.info(f"{w_name_final} 射击时刻已保存到: {final_shooting_output_txt_path}")
-            all_combined_shooting_times.extend(unique_shooting_times_w) # Add to master list for all_weapons.txt
+            all_combined_shooting_times.extend(unique_shooting_times_w) 
 
-    # Write all_weapons.txt
     if all_combined_shooting_times:
         unique_all_weapons_times = sorted(list(set(all_combined_shooting_times)))
         all_weapons_txt_path = os.path.join(video_output_dir, "all_weapons.txt")
-        with open(all_weapons_txt_path, 'w') as f_all:
+        with open(all_weapons_txt_path, 'w', encoding='utf-8') as f_all:
             for t_shot_all in unique_all_weapons_times:
                 f_all.write(f"{seconds_to_hms(t_shot_all)}\n")
         logger.info(f"所有选定武器的 {len(unique_all_weapons_times)} 个射击时刻已合并保存到: {all_weapons_txt_path}")
     else:
         logger.info("没有为任何选定武器检测到射击时刻，all_weapons.txt 将不被创建。")
+        all_weapons_txt_path = os.path.join(video_output_dir, "all_weapons.txt")
+        if os.path.exists(all_weapons_txt_path):
+            try: os.remove(all_weapons_txt_path)
+            except OSError as e: logger.error(f"无法删除空的 all_weapons.txt: {e}")
 
-    # Final write for Bow's infinite times (if bow was selected)
-    if "bow" in selected_weapon_names:
-        final_infinite_output_txt_path = os.path.join(video_output_dir, "infinite.txt") # Bow specific
+
+    if "bow" in selected_weapon_names and WEAPON_METADATA["bow"]["has_infinite"]:
+        final_infinite_output_txt_path = os.path.join(video_output_dir, "infinite.txt") 
         existing_inf_times_sec = []
         if os.path.exists(final_infinite_output_txt_path):
             try:
@@ -584,11 +607,17 @@ def find_shooting_moments(video_path,
         if not unique_infinite_start_times_bow:
             logger.info(f"没有检测到Bow ∞ 大符号开始时刻。{final_infinite_output_txt_path} 将为空或不创建。")
             if os.path.exists(final_infinite_output_txt_path):
-                try: os.remove(final_infinite_output_txt_path)
+                try: 
+                    if os.path.getsize(final_infinite_output_txt_path) == 0:
+                        os.remove(final_infinite_output_txt_path)
+                    else:
+                         with open(final_infinite_output_txt_path, 'r', encoding='utf-8') as f_check_inf:
+                            if not f_check_inf.read().strip():
+                                os.remove(final_infinite_output_txt_path)
                 except OSError as e: logger.error(f"无法删除空的 {final_infinite_output_txt_path}: {e}")
         else:
             logger.info(f"检测到 {len(unique_infinite_start_times_bow)} 个Bow ∞ 大符号开始时刻。")
-            with open(final_infinite_output_txt_path, 'w') as f:
+            with open(final_infinite_output_txt_path, 'w', encoding='utf-8') as f:
                 for t_inf_start in unique_infinite_start_times_bow:
                     f.write(f"{seconds_to_hms(t_inf_start)}\n")
             logger.info(f"Bow ∞ 大符号开始时刻已保存到: {final_infinite_output_txt_path}")

@@ -3,11 +3,11 @@ import cv2
 from analysis_functions import (
     read_number_single,
     read_number_two,
-    compare_twovalue
+    check_roi_against_template
 )
 
 if __name__ == '__main__':
-    image_path = "E:\\mande\\0_PLAN\\pic_template\\template_infinite.png"
+    image_path = "E:\\mande\\0_PLAN\\pic_template\\template_p2020_double.png"
     yrm_path = "E:\\mande\\0_PLAN\\pic_template\\template_longbow.png"
     # 1. 使用 cv2.imread() 加载图像
     loaded_frame = cv2.imread(image_path)
@@ -35,11 +35,11 @@ if __name__ == '__main__':
         INFINITE_ROI_X2 = 1779
         INFINITE_ROI_Y2 = 1024
         # 3. 将加载后的图像对象 (loaded_frame) 传递给函数
-        extracted_num = compare_twovalue(
+        extracted_num = check_roi_against_template(
             loaded_frame, yrm_path,
-            INFINITE_ROI_X1, INFINITE_ROI_Y1, 
-            INFINITE_ROI_X2, INFINITE_ROI_Y2,
-            debug_image_prefix="E:\\mande\\0_PLAN\\pic_template" # 指定保存调试图像的前缀和路径
+            BOW_ROI_X1, BOW_ROI_Y1, 
+            BOW_ROI_X2, BOW_ROI_Y2,
+            debug_image_prefix="E:\\mande\\0_PLAN\\pic_template\\1" # 指定保存调试图像的前缀和路径
         )
 
         if extracted_num is not None:

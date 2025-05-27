@@ -10,7 +10,8 @@ import sys # For platform-specific open
 # Assuming these files are in the same directory
 from analysis_functions import find_shooting_moments, WEAPON_METADATA # Import WEAPON_METADATA
 from general_function import download_twitch, hms_to_seconds, seconds_to_hms #
-from clip_functions import clip_video_ffmpeg, generate_clips_from_multiple_weapon_times, clip_video_ffmpeg_merged, clip_video_ffmpeg_with_duration, process_and_merge_times #
+# Import the new merge function as well
+from clip_functions import clip_video_ffmpeg, generate_clips_from_multiple_weapon_times, clip_video_ffmpeg_merged, clip_video_ffmpeg_with_duration, process_and_merge_times, generate_clips_from_multiple_weapon_times_merge #
 
 # --- Logger for the GUI and adapted main logic ---
 
@@ -33,7 +34,7 @@ class VideoProcessingGUI:
     def __init__(self, master):
         self.master = master
         master.title("ApexTool(beta)") #
-        master.geometry("900x950") # Increased height for weapon selection
+        master.geometry("900x980") # Increased height for weapon selection & new Part 3 options
 
         self.style = ttk.Style() #
         self.style.theme_use('clam') #
@@ -64,9 +65,13 @@ class VideoProcessingGUI:
 
         self.selected_parts_vars = { #
             '1': tk.BooleanVar(value=False), '2': tk.BooleanVar(value=False), #
-            '3': tk.BooleanVar(value=False), '4': tk.BooleanVar(value=False), #
-            '5': tk.BooleanVar(value=False), '6': tk.BooleanVar(value=False) #
+            # '3' is handled by part3_enabled now
+            '4': tk.BooleanVar(value=False), '5': tk.BooleanVar(value=False), #
+            '6': tk.BooleanVar(value=False) #
         }
+        # New variables for Part 3 clipping choice
+        self.part3_enabled = tk.BooleanVar(value=False) # Checkbox to enable Part 3
+        self.part3_clip_mode = tk.StringVar(value="individual") # Radio button choice: "individual" or "merged"
         
         self.video_checkbox_vars = {} #
         self.selected_weapons_vars = { # For selecting weapons for analysis (Part 2)
@@ -75,7 +80,7 @@ class VideoProcessingGUI:
         # Default some common weapons to True if desired, e.g.:
         # if "bow" in self.selected_weapons_vars:
         #     self.selected_weapons_vars["bow"].set(True)
-        # if "r3030" in self.selected_weapons_vars:
+        # if "r3030" in self.selected_weapons_vars: # Ensure r3030 exists in WEAPON_METADATA if used here
         #     self.selected_weapons_vars["r3030"].set(True)
 
 
@@ -200,21 +205,38 @@ class VideoProcessingGUI:
 
         tasks_frame = ttk.LabelFrame(main_frame, text="Select Parts to Run", padding="10") #
         tasks_frame.pack(fill=tk.X, expand=False, pady=5, anchor=tk.N) #
-        part_descriptions = { #
-            '1': "Part 1: Download videos",
-            '2': "Part 2: Analyze videos (for selected weapons)", #
-            '3': "Part 3: Clip (for each selected weapon's .txt)", # Updated description
-            '4': "Part 4: Clip Bow Infinite (from infinite.txt)", # Clarified Bow-specific
+        
+        # Part 1 and 2
+        ttk.Checkbutton(tasks_frame, text="Part 1: Download videos", variable=self.selected_parts_vars['1']).grid(row=0, column=0, sticky=tk.W, padx=5, pady=2) #
+        ttk.Checkbutton(tasks_frame, text="Part 2: Analyze videos (for selected weapons)", variable=self.selected_parts_vars['2']).grid(row=0, column=1, sticky=tk.W, padx=5, pady=2) #
+
+        # Part 3 - with options
+        part3_outer_frame = ttk.Frame(tasks_frame) # Use a frame to group Part 3 elements
+        part3_outer_frame.grid(row=1, column=0, columnspan=2, sticky=tk.W, padx=0, pady=2)
+
+        self.part3_enable_cb = ttk.Checkbutton(part3_outer_frame, text="Part 3: Clip Weapons ", variable=self.part3_enabled, command=self._toggle_part3_options)
+        self.part3_enable_cb.pack(side=tk.LEFT, padx=(5,0)) # Align checkbox to the left
+        
+        self.part3_rb_individual = ttk.Radiobutton(part3_outer_frame, text="Individual", variable=self.part3_clip_mode, value="individual", state=tk.DISABLED)
+        self.part3_rb_individual.pack(side=tk.LEFT, padx=(5,0))
+        self.part3_rb_merged = ttk.Radiobutton(part3_outer_frame, text="Merge Close", variable=self.part3_clip_mode, value="merged", state=tk.DISABLED)
+        self.part3_rb_merged.pack(side=tk.LEFT, padx=(5,0))
+        
+        # Part 4, 5, 6 descriptions
+        part_descriptions_rest = { #
+            '4': "Part 4: Clip Bow Infinite (from infinite_2.txt)", # Clarified Bow-specific, and source file
             '5': "Part 5: Merge Bow TXTs (shooting_bow.txt + infinite_3.txt)", # Clarified Bow-specific
             '6': "Part 6: Clip Bow Merged (from shooting_bow_sum.txt)" # Clarified Bow-specific
         }
-        col_task, row_task = 0, 0 #
-        for part_num, desc in part_descriptions.items(): #
+        
+        col_task, row_task = 0, 2 # Start remaining parts from row 2
+        for part_num, desc in part_descriptions_rest.items(): #
             ttk.Checkbutton(tasks_frame, text=desc, variable=self.selected_parts_vars[part_num]).grid(row=row_task, column=col_task, sticky=tk.W, padx=5, pady=2) #
             col_task += 1 #
             if col_task >= 2: col_task = 0; row_task += 1 #
+        
         task_buttons_frame = ttk.Frame(tasks_frame) #
-        task_buttons_frame.grid(row=row_task+1, column=0, columnspan=2, pady=5) #
+        task_buttons_frame.grid(row=row_task+1, column=0, columnspan=2, pady=5) # Adjust row if necessary
         ttk.Button(task_buttons_frame, text="Select All Parts", command=self.select_all_parts).pack(side=tk.LEFT, padx=5) #
         ttk.Button(task_buttons_frame, text="Deselect All Parts", command=self.deselect_all_parts).pack(side=tk.LEFT, padx=5) #
         
@@ -234,6 +256,15 @@ class VideoProcessingGUI:
         log_frame.pack(fill=tk.BOTH, expand=True, pady=(5,0)) #
         self.log_text_widget = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=10, state='disabled') #
         self.log_text_widget.pack(fill=tk.BOTH, expand=True) #
+
+    def _toggle_part3_options(self):
+        """Enable/disable Part 3 radio buttons based on Part 3 checkbox state."""
+        if self.part3_enabled.get():
+            self.part3_rb_individual.config(state=tk.NORMAL)
+            self.part3_rb_merged.config(state=tk.NORMAL)
+        else:
+            self.part3_rb_individual.config(state=tk.DISABLED)
+            self.part3_rb_merged.config(state=tk.DISABLED)
 
     def open_video_urls_txt(self): #
         root_dir = self.params["ROOT"].get() #
@@ -325,9 +356,13 @@ class VideoProcessingGUI:
             
     def select_all_parts(self): #
         for var in self.selected_parts_vars.values(): var.set(True) #
+        self.part3_enabled.set(True) # Also enable part 3 when selecting all
+        self._toggle_part3_options() # Update radio button states
 
     def deselect_all_parts(self): #
         for var in self.selected_parts_vars.values(): var.set(False) #
+        self.part3_enabled.set(False) # Also disable part 3 when deselecting all
+        self._toggle_part3_options() # Update radio button states
 
     def select_all_weapons(self):
         for var in self.selected_weapons_vars.values(): var.set(True)
@@ -357,6 +392,14 @@ class VideoProcessingGUI:
             self.run_button.config(state=tk.NORMAL); return #
         
         selected_parts_set = {part_num for part_num, var in self.selected_parts_vars.items() if var.get()} #
+        
+        # Handle Part 3 selection based on the enable checkbox and radio buttons
+        if self.part3_enabled.get():
+            selected_parts_set.add('3') # Mark Part 3 as selected
+            config["part3_mode"] = self.part3_clip_mode.get() # Store the chosen mode ("individual" or "merged")
+        else:
+            config["part3_mode"] = None # Part 3 is not running
+
         if not selected_parts_set: #
             messagebox.showwarning("No Parts Selected", "Please select at least one part to run.") #
             self.run_button.config(state=tk.NORMAL); return #
@@ -377,9 +420,8 @@ class VideoProcessingGUI:
         if '2' in selected_parts_set and not config["selected_weapons_for_analysis"]:
             messagebox.showwarning("No Weapons Selected", "Part 2 is selected, but no weapons are chosen for analysis. Please select at least one weapon.")
             self.run_button.config(state=tk.NORMAL); return
-        if '3' in selected_parts_set and not config["selected_weapons_for_analysis"]:
+        if '3' in selected_parts_set and not config["selected_weapons_for_analysis"]: # Check if Part 3 is selected
             messagebox.showwarning("No Weapons for Clipping", "Part 3 is selected, but no weapons were selected for analysis (Part 2). Part 3 relies on Part 2's output for those weapons.")
-            # Potentially allow to proceed if files already exist, but for now, simpler to link it to Part 2 selection
             self.run_button.config(state=tk.NORMAL); return
 
 
@@ -400,8 +442,6 @@ class VideoProcessingGUI:
         ROOT = config["ROOT"] #
         URLPATH = os.path.join(ROOT, "video_urls.txt") #
         
-        # Template paths will be constructed in analysis_functions based on WEAPON_METADATA
-        # bow_template_path = os.path.join(ROOT, "pic_template", "template_bow.png") # No longer passed directly
         infinite_symbol_template_path = os.path.join(ROOT, "pic_template", "template_infinite_bow.png") # Still needed for bow
         
         output_root_folder = os.path.join(ROOT, "clips_output") #
@@ -412,8 +452,11 @@ class VideoProcessingGUI:
         selected_parts = config["selected_parts"] #
         selected_video_ids_to_process = config.get("selected_video_ids_for_processing", []) #
         selected_weapons_for_analysis = config.get("selected_weapons_for_analysis", []) #
+        part3_clip_mode_selected = config.get("part3_mode") # Get the clipping mode for Part 3
         
         logic_logger.info(f"User selected Parts: {sorted(list(selected_parts))}") #
+        if '3' in selected_parts:
+            logic_logger.info(f"Part 3 clipping mode: {part3_clip_mode_selected}")
         if selected_weapons_for_analysis and '2' in selected_parts:
              logic_logger.info(f"User selected Weapons for Analysis (Part 2): {selected_weapons_for_analysis}")
         if selected_video_ids_to_process and any(p in selected_parts for p in ['2','3','4','5','6']): #
@@ -462,8 +505,6 @@ class VideoProcessingGUI:
             if not selected_video_ids_to_process: logic_logger.warning("Part 2: No videos selected. Skipping Part 2 as it depends on selection.") #
             elif not selected_weapons_for_analysis: logic_logger.warning("Part 2: No weapons selected for analysis. Skipping Part 2.")
             else: #
-                # Template path checks will be done inside find_shooting_moments for each selected weapon
-                # if not os.path.exists(bow_template_path): logic_logger.error(f"错误: 弓箭模板图片 {bow_template_path} 未找到。"); #
                 if "bow" in selected_weapons_for_analysis and not os.path.exists(infinite_symbol_template_path):
                      logic_logger.error(f"错误: 无穷大符号模板图片 {infinite_symbol_template_path} 未找到 (required for Bow analysis).");
                 
@@ -477,27 +518,21 @@ class VideoProcessingGUI:
                     video_specific_output_dir_part2 = os.path.join(output_root_folder, video_id) #
                     os.makedirs(video_specific_output_dir_part2, exist_ok=True) #
                     
-                    # shooting_bow.txt and infinite.txt paths are now handled inside find_shooting_moments or are weapon-specific
-                    # shooting_bow_txt_path = os.path.join(video_specific_output_dir_part2, "shooting_bow.txt") #
-                    # infinite_txt_path = os.path.join(video_specific_output_dir_part2, "infinite.txt") #
-
                     find_shooting_moments(
                         video_path=video_path_for_analysis,
-                        root_pic_template_dir=os.path.join(ROOT, "pic_template"), # Pass base template dir
-                        selected_weapon_names=selected_weapons_for_analysis, # Pass selected weapons
-                        # Paths for specific files (like infinite for bow, and output dir)
+                        root_pic_template_dir=os.path.join(ROOT, "pic_template"), 
+                        selected_weapon_names=selected_weapons_for_analysis, 
                         video_output_dir=video_specific_output_dir_part2,
-                        infinite_symbol_template_path=infinite_symbol_template_path, # Still needed for bow
-                        # ROI and Thresholds (BOW_ROI is general weapon activation ROI)
+                        infinite_symbol_template_path=infinite_symbol_template_path, 
                         weapon_activation_similarity_threshold=config["BOW_SIMILARITY_THRESHOLD"],
                         similarity_threshold_infinite=config["SIMILARITY_THRESHOLD_INFINITE"],
                         number_roi_x1=config["NUMBER_ROI_X1"], number_roi_y1=config["NUMBER_ROI_Y1"],
                         number_roi_x2=config["NUMBER_ROI_X2"], number_roi_y2=config["NUMBER_ROI_Y2"],
                         mid_split_x=config["NUMBER_MID"],
-                        weapon_roi_x1=config["BOW_ROI_X1"], weapon_roi_y1=config["BOW_ROI_Y1"], # General weapon ROI
-                        weapon_roi_x2=config["BOW_ROI_X2"], weapon_roi_y2=config["BOW_ROI_Y2"], # General weapon ROI
-                        infinite_roi_x1=config["INFINITE_ROI_X1"], infinite_roi_y1=config["INFINITE_ROI_Y1"], # Bow specific
-                        infinite_roi_x2=config["INFINITE_ROI_X2"], infinite_roi_y2=config["INFINITE_ROI_Y2"], # Bow specific
+                        weapon_roi_x1=config["BOW_ROI_X1"], weapon_roi_y1=config["BOW_ROI_Y1"], 
+                        weapon_roi_x2=config["BOW_ROI_X2"], weapon_roi_y2=config["BOW_ROI_Y2"], 
+                        infinite_roi_x1=config["INFINITE_ROI_X1"], infinite_roi_y1=config["INFINITE_ROI_Y1"], 
+                        infinite_roi_x2=config["INFINITE_ROI_X2"], infinite_roi_y2=config["INFINITE_ROI_Y2"], 
                         coarse_interval_seconds=config["COARSE_SCAN_INTERVAL_SECONDS"],
                         fine_interval_seconds=config["FINE_SCAN_INTERVAL_SECONDS"],
                         start_time=config["START_TIME"]
@@ -513,11 +548,11 @@ class VideoProcessingGUI:
             elif not selected_weapons_for_analysis:
                 logic_logger.warning("Part 3: No weapons were selected for analysis (Part 2), "
                                      "so no weapon-specific TXT files to clip from. Skipping.")
+            elif not part3_clip_mode_selected: # Should be caught by GUI checks, but defensive
+                logic_logger.error("Part 3: Clipping mode not specified. Skipping.")
             else:
                 logic_logger.info(f"开始为选定的 {len(selected_video_ids_to_process)} 个视频, "
-                                 f"针对分析过的武器 {selected_weapons_for_analysis} 进行合并排序剪辑 (Part 3)...")
-
-                total_clips_made_part3 = 0 # To count if any clips were made across all videos
+                                 f"针对分析过的武器 {selected_weapons_for_analysis} 进行剪辑 (Part 3 - Mode: {part3_clip_mode_selected})...")
 
                 for video_id in selected_video_ids_to_process:
                     if not os.path.isdir(video_download_base_dir):
@@ -531,54 +566,56 @@ class VideoProcessingGUI:
                         continue
 
                     video_path_for_clipping = os.path.join(video_download_base_dir, filename_in_dir_p3)
-                    video_specific_output_dir_p3 = os.path.join(output_root_folder, video_id)
+                    video_specific_output_dir_p3_base = os.path.join(output_root_folder, video_id) # Base output dir for this video
 
-                    if not os.path.exists(video_specific_output_dir_p3):
-                        logic_logger.warning(f"Part 3: Output directory '{video_specific_output_dir_p3}' "
-                                             f"for video ID '{video_id}' not found. Skipping video for Part 3.")
+                    if not os.path.exists(video_specific_output_dir_p3_base):
+                        logic_logger.warning(f"Part 3: Base output directory '{video_specific_output_dir_p3_base}' "
+                                             f"for video ID '{video_id}' not found (expected from Part 2). Skipping video for Part 3.")
                         continue
 
                     weapon_time_sources_for_this_video = []
                     for weapon_name_to_clip in selected_weapons_for_analysis:
-                        weapon_times_txt_filename = f"shooting_{weapon_name_to_clip}.txt"
-                        weapon_shooting_times_txt_path = os.path.join(video_specific_output_dir_p3, weapon_times_txt_filename)
+                        weapon_times_txt_filename = f"shooting_{weapon_name_to_clip}.txt" # Assuming internal name is used for txt
+                        weapon_shooting_times_txt_path = os.path.join(video_specific_output_dir_p3_base, weapon_times_txt_filename)
 
                         if os.path.exists(weapon_shooting_times_txt_path) and os.path.getsize(weapon_shooting_times_txt_path) > 0:
                             weapon_time_sources_for_this_video.append({
                                 'file_path': weapon_shooting_times_txt_path,
-                                'weapon_name': weapon_name_to_clip
+                                'weapon_name': weapon_name_to_clip 
                             })
                         else:
                             logic_logger.info(f"Part 3: 时间文件 {weapon_times_txt_filename} for video {video_id} "
-                                             f"(武器: {weapon_name_to_clip}) 不存在或为空. "
-                                             f"不会包含在此视频的合并剪辑中.")
-
+                                             f"(武器: {weapon_name_to_clip}) 不存在或为空. ")
+                    
                     if weapon_time_sources_for_this_video:
-                        logic_logger.info(f"Part 3: 为视频 ID '{video_id}' 准备从 "
-                                         f"{len(weapon_time_sources_for_this_video)} 个武器时间文件中收集时间戳进行合并剪辑.")
-                        # Call the new function from clip_functions.py
-                        # generate_clips_from_multiple_weapon_times will handle its own logging for created clips.
-                        generate_clips_from_multiple_weapon_times(
-                            input_video_path=video_path_for_clipping,
-                            weapon_time_sources=weapon_time_sources_for_this_video,
-                            output_folder=video_specific_output_dir_p3,
-                            clip_duration=0.9 # Default duration, or make it a config
-                        )
-                        # We don't have a direct count here unless generate_clips... returns it.
-                        # The logging within generate_clips... will indicate success/failure.
-                        total_clips_made_part3 = 1 # Mark that at least one attempt was made
+                        logic_logger.info(f"Part 3 (Mode: {part3_clip_mode_selected}): 为视频 ID '{video_id}' 准备从 "
+                                         f"{len(weapon_time_sources_for_this_video)} 个武器时间文件中收集时间戳进行剪辑.")
+                        
+                        # Create a subfolder for the specific clipping mode
+                        clips_subfolder_name = f"clips_{part3_clip_mode_selected}" # e.g., "clips_individual" or "clips_merged"
+                        final_clips_output_path = os.path.join(video_specific_output_dir_p3_base, clips_subfolder_name)
+                        os.makedirs(final_clips_output_path, exist_ok=True)
+
+                        if part3_clip_mode_selected == "individual":
+                            generate_clips_from_multiple_weapon_times(
+                                input_video_path=video_path_for_clipping,
+                                weapon_time_sources=weapon_time_sources_for_this_video,
+                                output_folder=final_clips_output_path, # Use the mode-specific subfolder
+                                clip_duration=0.9 # Default duration, or make it a config
+                            )
+                        elif part3_clip_mode_selected == "merged":
+                            generate_clips_from_multiple_weapon_times_merge(
+                                input_video_path=video_path_for_clipping,
+                                weapon_time_sources=weapon_time_sources_for_this_video,
+                                output_folder=final_clips_output_path, # Use the mode-specific subfolder
+                                clip_duration=0.9, # Base duration for individual events within merge
+                                merge_threshold_factor=1.0 # Default factor, can be tuned
+                            )
                     else:
-                        logic_logger.info(f"Part 3: 没有找到有效的武器时间文件为视频 ID '{video_id}' 进行合并剪辑.")
-
-                # if total_clips_made_part3 == 0 and selected_video_ids_to_process and selected_weapons_for_analysis:
-                # This log might be misleading as generate_clips... does its own detailed logging.
-                # logic_logger.info(f"Part 3: 未能为任何选定视频和武器组合成功启动合并剪辑处理 (请检查子日志).")
-
-            logic_logger.info("--- Part 3 (合并排序武器剪辑) 完成 ---")
+                        logic_logger.info(f"Part 3: 没有找到有效的武器时间文件为视频 ID '{video_id}' 进行剪辑 (模式: {part3_clip_mode_selected}).")
+                logic_logger.info(f"--- Part 3 (剪辑 - Mode: {part3_clip_mode_selected}) 完成 ---")
         else:
             logic_logger.info("--- 跳过 Part 3: 合并排序武器剪辑 ---")
-
-        # ... (Part 4, 5, 6 logic remains the same as they are bow-specific) ...
         
         # Parts 4, 5, 6 remain Bow-specific as per interpretation
         if '4' in selected_parts: # BOW SPECIFIC
@@ -592,13 +629,17 @@ class VideoProcessingGUI:
                     if not filename_in_dir_p4: logic_logger.warning(f"Part 4: File for '{video_id}' not found. Skipping."); continue #
                     video_path_for_clipping = os.path.join(video_download_base_dir, filename_in_dir_p4) #
                     video_specific_output_dir_p4 = os.path.join(output_root_folder, video_id) #
-                    infinite_txt_path_for_clipping = os.path.join(video_specific_output_dir_p4, "infinite_2.txt") #
+                    infinite_txt_path_for_clipping = os.path.join(video_specific_output_dir_p4, "infinite_2.txt") #  <-- infinite_2.txt as per existing code
                     if not os.path.exists(video_specific_output_dir_p4): #
                         logic_logger.warning(f"Part 4: Output directory '{video_specific_output_dir_p4}' for video ID '{video_id}' not found. Skipping.")
                         continue
                     if not (os.path.exists(infinite_txt_path_for_clipping) and os.path.getsize(infinite_txt_path_for_clipping) > 0): #
                         logic_logger.warning(f"Part 4: infinite_2.txt for {video_id} (Bow) at '{infinite_txt_path_for_clipping}' missing or empty. Skipping.")
                         continue #
+                    # Ensure clip_video_ffmpeg_with_duration is correctly creating subfolders or if output_folder is the final one.
+                    # Current structure passes video_specific_output_dir_p4, which implies clips go directly into ".../videoid/"
+                    # If Part 4 clips need their own subfolder (e.g., "clips_bow_infinite"), this needs adjustment here or in the function.
+                    # For now, assuming clips go into video_specific_output_dir_p4 directly.
                     clip_video_ffmpeg_with_duration(video_path_for_clipping, infinite_txt_path_for_clipping, video_specific_output_dir_p4) #
                     processed_clips_in_part4 +=1 #
                 if processed_clips_in_part4 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 4: 没有选定视频被剪辑 (Bow Infinite)。") #
@@ -615,7 +656,7 @@ class VideoProcessingGUI:
                     if not os.path.isdir(video_specific_output_dir_p5): logic_logger.warning(f"Part 5: Output dir for {video_id} ('{video_specific_output_dir_p5}') not found. Skipping."); continue #
                     logic_logger.info(f"\n[Part 5] 为视频ID {video_id} 合并两个Bow txt") #
                     shooting_bow_file = os.path.join(video_specific_output_dir_p5, "shooting_bow.txt") # Assumes Part 2 created this if bow was selected
-                    infinite_file_to_merge = os.path.join(video_specific_output_dir_p5, "infinite_3.txt") # Assumes this is created if bow analysis ran
+                    infinite_file_to_merge = os.path.join(video_specific_output_dir_p5, "infinite_3.txt") # Assumes this is created if bow analysis ran / or refers to infinite.txt
                     
                     if not os.path.exists(shooting_bow_file): #
                         logic_logger.warning(f"Part 5: shooting_bow.txt for {video_id} at '{shooting_bow_file}' missing. Skipping merge for this ID.")
@@ -645,12 +686,12 @@ class VideoProcessingGUI:
                     if not (os.path.exists(sum_txt_path_for_clipping) and os.path.getsize(sum_txt_path_for_clipping) > 0): #
                         logic_logger.warning(f"Part 6: shooting_bow_sum.txt for {video_id} at '{sum_txt_path_for_clipping}' missing or empty. Skipping.")
                         continue #
-                    # clip_video_ffmpeg needs weapon_name, but sum.txt is bow-specific merged.
-                    # For consistency, we can pass "bow_sum" or similar, or adapt clip_video_ffmpeg_merged
-                    # For now, let's use clip_video_ffmpeg_merged for sum.txt as it handles overlapping times.
-                    # clip_video_ffmpeg_merged(video_path_for_clipping, sum_txt_path_for_clipping, video_specific_output_dir_p6, clip_duration=0.9) 
-                    # OR if using clip_video_ffmpeg:
-                    clip_video_ffmpeg(video_path_for_clipping, sum_txt_path_for_clipping, video_specific_output_dir_p6, clip_duration=0.9, weapon_name="bow_sum")
+                    # Your original code used clip_video_ffmpeg with weapon_name="bow_sum"
+                    # clip_video_ffmpeg_merged is also an option if sum.txt can have overlapping times from its merge process.
+                    # Sticking to original use of clip_video_ffmpeg for sum.txt.
+                    # If subfolders are desired for Part 6 clips, similar logic as Part 3 would be needed.
+                    # For now, clips go directly into video_specific_output_dir_p6.
+                    clip_video_ffmpeg(video_path_for_clipping, sum_txt_path_for_clipping, video_specific_output_dir_p6, clip_duration=0.9, weapon_name="bow_sum") # Added weapon_name argument to match definition if using it
                     processed_clips_in_part6 +=1 #
                 if processed_clips_in_part6 == 0 and selected_video_ids_to_process: logic_logger.info(f"Part 6: 没有选定视频被剪辑 (Bow Merged)。") #
             logic_logger.info("--- Part 6 (BOW SUM剪辑) 完成 ---") #

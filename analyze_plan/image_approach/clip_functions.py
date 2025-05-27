@@ -616,3 +616,182 @@ def process_and_merge_times(shooting_times_file, infinite_file2):
         logger.info(f"Successfully processed files. Wrote {len(unique_sorted_times)} unique sorted time strings to {output_path}")
     except Exception as e:
         logger.error(f"Error writing to output file {output_path}: {e}")
+
+def _generate_merged_clip_ffmpeg_command(
+    input_video_path, 
+    group_start_time_sec, 
+    merged_duration_sec, 
+    output_clip_path
+):
+    """Helper function to create and run the ffmpeg command for a merged clip."""
+    formatted_start_time_for_ffmpeg = seconds_to_hms(group_start_time_sec)
+    command = [
+        'ffmpeg',
+        '-ss', formatted_start_time_for_ffmpeg,
+        '-i', input_video_path,
+        '-t', str(merged_duration_sec),
+        '-codec', 'copy',
+        '-y',
+        output_clip_path
+    ]
+    try:
+        logger.info(f"Executing merged clip command: {' '.join(command)}")
+        process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if process.stderr and process.stderr.strip():
+            logger.info(f"FFmpeg STDERR for {os.path.basename(output_clip_path)}:\n{process.stderr.strip()}")
+        elif process.stdout and process.stdout.strip(): # Log stdout if stderr is empty
+            logger.info(f"FFmpeg STDOUT for {os.path.basename(output_clip_path)}:\n{process.stdout.strip()}")
+        logger.info(f"Successfully merged and saved: {output_clip_path}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error merging clip (start: {formatted_start_time_for_ffmpeg}, duration: {merged_duration_sec}s): {e}")
+        logger.error(f"Command: {' '.join(e.cmd)}")
+        if e.stdout and e.stdout.strip(): logger.error(f"FFmpeg STDOUT: {e.stdout.strip()}")
+        if e.stderr and e.stderr.strip(): logger.error(f"FFmpeg STDERR: {e.stderr.strip()}")
+    except Exception as e:
+        logger.error(f"Unknown error processing merged clip (start: {formatted_start_time_for_ffmpeg}): {e}")
+    return False
+
+def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_time_sources, output_folder, clip_duration=0.8, merge_threshold_factor=1.0):
+    """
+    Generates clips from multiple weapon timestamp files, merging close timestamps
+    chronologically with a global clip index for merged groups.
+
+    Args:
+        input_video_path (str): Path to the input video.
+        weapon_time_sources (list): A list of dictionaries, where each dict is
+                                    {'file_path': str, 'weapon_name': str}.
+        output_folder (str): Folder to save the clips.
+        clip_duration (float): Base duration of each individual clip event in seconds.
+                               Timestamps will be merged if the current one starts
+                               within 'clip_duration * merge_threshold_factor' seconds
+                               after the *previous one started*.
+        merge_threshold_factor (float): Multiplier for clip_duration to determine merge window.
+                                        Default 1.0 means timestamps are merged if the next starts
+                                        before the previous one would have ended.
+    """
+    if not os.path.exists(input_video_path):
+        logger.error(f"错误: 输入视频文件未找到 {input_video_path}")
+        return
+
+    all_timestamps_info = [] # Will store dicts: {'time_sec': float, 'weapon_name': str, 'original_hms': str}
+    
+    for source_info in weapon_time_sources:
+        file_path = source_info['file_path']
+        weapon_name = source_info['weapon_name']
+        
+        if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+            logger.info(f"时间文件 {os.path.basename(file_path)} (武器: {weapon_name}) 不存在或为空，跳过。")
+            continue
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                logger.info(f"读取时间文件: {file_path} (武器: {weapon_name})")
+                for line_num, line_content in enumerate(f, 1):
+                    start_hms = line_content.strip()
+                    if not start_hms:
+                        continue
+                    try:
+                        start_sec = hms_to_seconds(start_hms)
+                        all_timestamps_info.append({
+                            'time_sec': start_sec,
+                            'weapon_name': weapon_name,
+                            'original_hms': start_hms 
+                        })
+                    except ValueError as e:
+                        logger.warning(f"解析时间戳 '{start_hms}' 错误 (来自 {os.path.basename(file_path)}, 行 {line_num}, 武器: {weapon_name}): {e}。跳过此时间戳。")
+        except Exception as e:
+            logger.error(f"读取时间文件 {file_path} (武器: {weapon_name}) 时出错: {e}")
+
+    if not all_timestamps_info:
+        logger.info(f"没有从提供的源文件中收集到有效的时间戳进行剪辑。视频: {os.path.basename(input_video_path)}")
+        return
+
+    all_timestamps_info.sort(key=lambda x: x['time_sec'])
+    
+    os.makedirs(output_folder, exist_ok=True)
+    video_name_no_ext = os.path.splitext(os.path.basename(input_video_path))[0]
+    input_video_extension = os.path.splitext(input_video_path)[1]
+    if not input_video_extension: 
+        logger.warning(f"警告: 输入视频 {input_video_path} 没有文件扩展名。默认使用 .mp4 输出。")
+        input_video_extension = ".mp4"
+
+    effective_merge_threshold = clip_duration * merge_threshold_factor
+    logger.info(f"开始合并剪辑视频: {os.path.basename(input_video_path)}, "
+                  f"共 {len(all_timestamps_info)} 个原始时间点 (来自所有选定武器, 已排序). "
+                  f"基础片段时长: {clip_duration}s. 合并时间阈值 (从上个片段开始算): {effective_merge_threshold}s.")
+    
+    clips_created_count = 0
+    merged_group_global_idx = 0 # Global index for the output merged clips
+    
+    i = 0
+    while i < len(all_timestamps_info):
+        current_group_timestamps_info = [all_timestamps_info[i]] # Start a new group with the current timestamp
+        group_start_time_sec = all_timestamps_info[i]['time_sec']
+        
+        # Look ahead to merge subsequent timestamps
+        j = i + 1
+        while j < len(all_timestamps_info):
+            next_ts_info = all_timestamps_info[j]
+            # Merge if the next timestamp starts within `effective_merge_threshold` 
+            # SECONDS AFTER THE *PREVIOUS TIMESTAMP IN THE FILE LIST* started.
+            # Or, more simply, if next_ts_info['time_sec'] is close to current_group_timestamps_info[-1]['time_sec']
+            
+            # The condition for merging is:
+            # The start time of the 'next_ts_info' must be BEFORE
+            # the start time of the *last timestamp currently in the group* PLUS clip_duration.
+            # time_diff_with_last_in_group_start = next_ts_info['time_sec'] - current_group_timestamps_info[-1]['time_sec']
+
+            # Merge if the next timestamp starts before the "effective end" of the previous event in the group.
+            # Effective end of previous event = current_group_timestamps_info[-1]['time_sec'] + clip_duration
+            if next_ts_info['time_sec'] < (current_group_timestamps_info[-1]['time_sec'] + clip_duration) and \
+               next_ts_info['time_sec'] >= current_group_timestamps_info[-1]['time_sec']: # Must be after or at same time
+                current_group_timestamps_info.append(next_ts_info)
+                j += 1
+            else:
+                break # End of current merge group
+        
+        # Process the collected group
+        merged_group_global_idx += 1 # Increment for each group processed (even if it's a single event)
+        
+        # Determine the actual duration of this merged clip
+        # It starts at the first timestamp in the group.
+        # It ends `clip_duration` seconds AFTER the LAST timestamp in the group started.
+        merged_clip_actual_end_time_sec = current_group_timestamps_info[-1]['time_sec'] + clip_duration
+        merged_clip_actual_duration_sec = merged_clip_actual_end_time_sec - group_start_time_sec
+
+        if merged_clip_actual_duration_sec <= 0.001:
+            original_hms_list = [ts['original_hms'] for ts in current_group_timestamps_info]
+            logger.warning(f"计算出的合并片段时长过短或为零/负数 ({merged_clip_actual_duration_sec:.3f}s) for group starting {seconds_to_hms(group_start_time_sec)} "
+                           f"(Orig HMS: {', '.join(original_hms_list)}). 跳过此组。")
+            i = j # Move to the start of the next potential group
+            continue
+
+        # Create filename
+        formatted_start_time_for_ffmpeg = seconds_to_hms(group_start_time_sec)
+        safe_time_str_for_filename = formatted_start_time_for_ffmpeg.replace(':', '').replace('.', '')
+        
+        # Collect weapon names for the filename, abbreviate, ensure uniqueness
+        weapon_names_in_group = sorted(list(set([ts['weapon_name'][:3].lower() for ts in current_group_timestamps_info]))) # first 3 chars, lowercase, unique
+        weapons_str_part = "_".join(weapon_names_in_group)
+        if not weapons_str_part: weapons_str_part = "multiw" # Fallback
+
+        output_clip_name = f"{video_name_no_ext}_{safe_time_str_for_filename}_mclip_{merged_group_global_idx}_{weapons_str_part}{input_video_extension}"
+        output_clip_path = os.path.join(output_folder, output_clip_name)
+
+        if os.path.exists(output_clip_path):
+            logger.info(f"合并片段 {output_clip_path} 已存在，跳过。")
+        elif _generate_merged_clip_ffmpeg_command(
+            input_video_path, 
+            group_start_time_sec, 
+            merged_clip_actual_duration_sec, 
+            output_clip_path
+        ):
+            clips_created_count += 1
+            
+        i = j # Move to the start of the next potential group
+
+    if clips_created_count > 0:
+        logger.info(f"合并剪辑完成。共创建 {clips_created_count} 个新片段。")
+    elif all_timestamps_info :
+        logger.info(f"未创建新片段 (可能所有目标片段已存在或在处理过程中发生错误)。")
+    # No specific message if all_timestamps_info was empty, already logged above.

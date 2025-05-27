@@ -1,0 +1,3 @@
+template_kraber.png, template_charge.png, template_sentinel.png, template_pk_red.png, template_mastiff.png, template_longbow.png, template_bow.png
+
+template_eva.png, template_mozambique_double.png, template_3030.png, template_wingman.png, template_g7.png,template_rampage.png, template_p2020_double.png, template_hemlok.png, template_spitfire.png, template_nemesis.png, template_flatline.png, template_havoc.png, template_re45.png, template_r301.png, template_devotion.png, template_car.png, template_r99.png
