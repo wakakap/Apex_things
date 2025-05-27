@@ -7,8 +7,8 @@ from analysis_functions import (
 )
 
 if __name__ == '__main__':
-    image_path = "E:\\mande\\0_PLAN\\pic_template\\test32.png"
-    yrm_path = "E:\\mande\\0_PLAN\\pic_template\\template.png"
+    image_path = "E:\\mande\\0_PLAN\\pic_template\\template_infinite.png"
+    yrm_path = "E:\\mande\\0_PLAN\\pic_template\\template_longbow.png"
     # 1. 使用 cv2.imread() 加载图像
     loaded_frame = cv2.imread(image_path)
 
@@ -30,15 +30,19 @@ if __name__ == '__main__':
         NUMBER_ROI_X2 = 1787
         NUMBER_ROI_Y2 = 1002
         NUMBER_MID = 1754
+        INFINITE_ROI_X1 = 1730
+        INFINITE_ROI_Y1 = 997
+        INFINITE_ROI_X2 = 1779
+        INFINITE_ROI_Y2 = 1024
         # 3. 将加载后的图像对象 (loaded_frame) 传递给函数
-        extracted_num = read_number_two(
-            loaded_frame, 
-            NUMBER_ROI_X1, NUMBER_ROI_Y1, 
-            NUMBER_ROI_X2, NUMBER_ROI_Y2, NUMBER_MID
-            # debug_image_prefix="E:\\mande\\0_PLAN\\pic_template\\de" # 指定保存调试图像的前缀和路径
+        extracted_num = compare_twovalue(
+            loaded_frame, yrm_path,
+            INFINITE_ROI_X1, INFINITE_ROI_Y1, 
+            INFINITE_ROI_X2, INFINITE_ROI_Y2,
+            debug_image_prefix="E:\\mande\\0_PLAN\\pic_template" # 指定保存调试图像的前缀和路径
         )
 
         if extracted_num is not None:
-            print(f"成功提取数字: {extracted_num}")
+            print(f"成功匹配: {extracted_num}")
         else:
             print("提取数字失败。")

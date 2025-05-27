@@ -343,8 +343,8 @@ class VideoProcessingGUI:
         
         ROOT = config["ROOT"] #
         URLPATH = os.path.join(ROOT, "video_urls.txt") #
-        template_image_path = os.path.join(ROOT, "pic_template", "template.png") #
-        infinite_symbol_template_path = os.path.join(ROOT, "pic_template", "template2.png") #
+        template_image_path = os.path.join(ROOT, "pic_template", "template_bow.png") #
+        infinite_symbol_template_path = os.path.join(ROOT, "pic_template", "template_infinite_bow.png") #
         output_root_folder = os.path.join(ROOT, "clips_output") #
         os.makedirs(output_root_folder, exist_ok=True) #
         video_download_base_dir = os.path.join(ROOT, "downloaded_videos") #
