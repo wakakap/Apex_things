@@ -1,6 +1,7 @@
 import os
 import logging
 import subprocess
+import sys
 from general_function import (
     seconds_to_hms,hms_to_seconds,hmsff_to_seconds
 )
@@ -102,13 +103,13 @@ def generate_clips_from_multiple_weapon_times(input_video_path, weapon_time_sour
         ]
         
         try:
-            logger.info(f"执行剪辑命令 ({i+1}/{len(all_timestamps_info)} for {current_weapon_name} @ {original_hms_for_log}): {' '.join(command)}") 
+            # logger.info(f"执行剪辑命令 ({i+1}/{len(all_timestamps_info)} for {current_weapon_name} @ {original_hms_for_log}): {' '.join(command)}") 
             process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
             
-            if process.stdout and process.stdout.strip():
-                logger.debug(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
-            if process.stderr and process.stderr.strip():
-                logger.debug(f"FFmpeg STDERR for {output_clip_name}:\n{process.stderr.strip()}") # FFmpeg info often goes to stderr
+            # if process.stdout and process.stdout.strip():
+            #     logger.debug(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
+            # if process.stderr and process.stderr.strip():
+            #     logger.debug(f"FFmpeg STDERR for {output_clip_name}:\n{process.stderr.strip()}") # FFmpeg info often goes to stderr
             logger.info(f"成功剪辑并保存: {output_clip_path}")
             clips_created_count += 1
         except subprocess.CalledProcessError as e:
@@ -185,13 +186,13 @@ def clip_video_ffmpeg(input_video_path, shooting_times_file, output_folder, clip
             ]
             # Removed: '-c:v', 'libx264', '-preset', 'fast', '-c:a', 'aac', '-strict', '-2'
 
-            logger.info(f"执行剪辑命令: {' '.join(command)}") # Log command for debugging
+            # logger.info(f"执行剪辑命令: {' '.join(command)}") # Log command for debugging
             process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8')
             # FFmpeg often outputs info to stderr, so logging both stdout and stderr can be useful
-            if process.stdout:
-                logger.info(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
-            if process.stderr:
-                logger.info(f"FFmpeg STDERR for {output_clip_name}:\n{process.stderr.strip()}")
+            # if process.stdout:
+            #     logger.info(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
+            # if process.stderr:
+            #     logger.info(f"FFmpeg STDERR for {output_clip_name}:\n{process.stderr.strip()}")
             logger.info(f"成功剪辑并保存: {output_clip_path}")
 
         except subprocess.CalledProcessError as e:
@@ -259,17 +260,17 @@ def _process_merged_clip_group(
     ]
 
     try:
-        logger.info(f"执行合并剪辑命令: {' '.join(command)}")
+        # logger.info(f"执行合并剪辑命令: {' '.join(command)}")
         # Use errors='replace' for text output from subprocess
         process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
         
         # FFmpeg often outputs informational messages to stderr.
         # Log stderr if it contains anything significant.
-        if process.stderr and process.stderr.strip():
-             logger.info(f"FFmpeg STDERR for {output_clip_name}:\n{process.stderr.strip()}")
-        # If stderr is empty but stdout has content, log stdout.
-        elif process.stdout and process.stdout.strip():
-             logger.info(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
+        # if process.stderr and process.stderr.strip():
+        #      logger.info(f"FFmpeg STDERR for {output_clip_name}:\n{process.stderr.strip()}")
+        # # If stderr is empty but stdout has content, log stdout.
+        # elif process.stdout and process.stdout.strip():
+        #      logger.info(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
 
         logger.info(f"成功合并剪辑并保存: {output_clip_path}")
         return True # Clip processed successfully
@@ -486,11 +487,11 @@ def clip_video_ffmpeg_with_duration(input_video_path, shooting_times_file, outpu
                 # Even with returncode 0, FFmpeg might have warnings in stderr.
                 # Log stderr as info or debug if it's not empty.
                 logger.info(f"成功剪辑并保存: {output_clip_path}")
-                if process.stdout and process.stdout.strip():
-                    logger.debug(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
-                if process.stderr and process.stderr.strip():
-                    # FFmpeg often puts informational messages in stderr
-                    logger.debug(f"FFmpeg STDERR for {output_clip_name} (Info/Warnings):\n{process.stderr.strip()}")
+                # if process.stdout and process.stdout.strip():
+                #     logger.debug(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
+                # if process.stderr and process.stderr.strip():
+                #     # FFmpeg often puts informational messages in stderr
+                #     logger.debug(f"FFmpeg STDERR for {output_clip_name} (Info/Warnings):\n{process.stderr.strip()}")
                 successful_clips += 1
             else:
                 logger.error(f"剪辑视频时出错 (片段 {i+1}, 起始: {start_hms_str}, 时长: {clip_duration_seconds:.3f}s)。FFmpeg 返回码: {process.returncode}")
@@ -635,12 +636,12 @@ def _generate_merged_clip_ffmpeg_command(
         output_clip_path
     ]
     try:
-        logger.info(f"Executing merged clip command: {' '.join(command)}")
+        # logger.info(f"Executing merged clip command: {' '.join(command)}")
         process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
-        if process.stderr and process.stderr.strip():
-            logger.info(f"FFmpeg STDERR for {os.path.basename(output_clip_path)}:\n{process.stderr.strip()}")
-        elif process.stdout and process.stdout.strip(): # Log stdout if stderr is empty
-            logger.info(f"FFmpeg STDOUT for {os.path.basename(output_clip_path)}:\n{process.stdout.strip()}")
+        # if process.stderr and process.stderr.strip():
+        #     logger.info(f"FFmpeg STDERR for {os.path.basename(output_clip_path)}:\n{process.stderr.strip()}")
+        # elif process.stdout and process.stdout.strip(): # Log stdout if stderr is empty
+        #     logger.info(f"FFmpeg STDOUT for {os.path.basename(output_clip_path)}:\n{process.stdout.strip()}")
         logger.info(f"Successfully merged and saved: {output_clip_path}")
         return True
     except subprocess.CalledProcessError as e:
@@ -652,7 +653,7 @@ def _generate_merged_clip_ffmpeg_command(
         logger.error(f"Unknown error processing merged clip (start: {formatted_start_time_for_ffmpeg}): {e}")
     return False
 
-def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_time_sources, output_folder, clip_duration=0.8, merge_threshold_factor=1.0):
+def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_time_sources, output_folder, clip_duration=0.8, merge_threshold_factor=3.0):
     """
     Generates clips from multiple weapon timestamp files, merging close timestamps
     chronologically with a global clip index for merged groups.
@@ -732,19 +733,17 @@ def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_tim
         j = i + 1
         while j < len(all_timestamps_info):
             next_ts_info = all_timestamps_info[j]
-            # Merge if the next timestamp starts within `effective_merge_threshold` 
-            # SECONDS AFTER THE *PREVIOUS TIMESTAMP IN THE FILE LIST* started.
-            # Or, more simply, if next_ts_info['time_sec'] is close to current_group_timestamps_info[-1]['time_sec']
             
-            # The condition for merging is:
-            # The start time of the 'next_ts_info' must be BEFORE
-            # the start time of the *last timestamp currently in the group* PLUS clip_duration.
-            # time_diff_with_last_in_group_start = next_ts_info['time_sec'] - current_group_timestamps_info[-1]['time_sec']
+            # Calculate the time difference between the start of the next timestamp
+            # and the start of the last timestamp currently in the group.
+            time_diff_with_last_in_group_start = next_ts_info['time_sec'] - current_group_timestamps_info[-1]['time_sec']
 
-            # Merge if the next timestamp starts before the "effective end" of the previous event in the group.
-            # Effective end of previous event = current_group_timestamps_info[-1]['time_sec'] + clip_duration
-            if next_ts_info['time_sec'] < (current_group_timestamps_info[-1]['time_sec'] + clip_duration) and \
-               next_ts_info['time_sec'] >= current_group_timestamps_info[-1]['time_sec']: # Must be after or at same time
+            # MODIFIED CONDITION:
+            # Merge if the next timestamp is not before the last one in the group (i.e., time moves forward or is the same),
+            # AND the time difference from the start of the last timestamp in the group
+            # is within (less than or equal to) the effective_merge_threshold.
+            if time_diff_with_last_in_group_start >= 0 and \
+               time_diff_with_last_in_group_start <= effective_merge_threshold:
                 current_group_timestamps_info.append(next_ts_info)
                 j += 1
             else:
@@ -759,7 +758,7 @@ def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_tim
         merged_clip_actual_end_time_sec = current_group_timestamps_info[-1]['time_sec'] + clip_duration
         merged_clip_actual_duration_sec = merged_clip_actual_end_time_sec - group_start_time_sec
 
-        if merged_clip_actual_duration_sec <= 0.001:
+        if merged_clip_actual_duration_sec <= 0.001: # Use a small epsilon to avoid issues with float precision
             original_hms_list = [ts['original_hms'] for ts in current_group_timestamps_info]
             logger.warning(f"计算出的合并片段时长过短或为零/负数 ({merged_clip_actual_duration_sec:.3f}s) for group starting {seconds_to_hms(group_start_time_sec)} "
                            f"(Orig HMS: {', '.join(original_hms_list)}). 跳过此组。")
@@ -770,10 +769,9 @@ def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_tim
         formatted_start_time_for_ffmpeg = seconds_to_hms(group_start_time_sec)
         safe_time_str_for_filename = formatted_start_time_for_ffmpeg.replace(':', '').replace('.', '')
         
-        # Collect weapon names for the filename, abbreviate, ensure uniqueness
-        weapon_names_in_group = sorted(list(set([ts['weapon_name'][:3].lower() for ts in current_group_timestamps_info]))) # first 3 chars, lowercase, unique
+        weapon_names_in_group = sorted(list(set([ts['weapon_name'][:3].lower() for ts in current_group_timestamps_info]))) 
         weapons_str_part = "_".join(weapon_names_in_group)
-        if not weapons_str_part: weapons_str_part = "multiw" # Fallback
+        if not weapons_str_part: weapons_str_part = "multiw"
 
         output_clip_name = f"{video_name_no_ext}_{safe_time_str_for_filename}_mclip_{merged_group_global_idx}_{weapons_str_part}{input_video_extension}"
         output_clip_path = os.path.join(output_folder, output_clip_name)
@@ -792,6 +790,213 @@ def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_tim
 
     if clips_created_count > 0:
         logger.info(f"合并剪辑完成。共创建 {clips_created_count} 个新片段。")
-    elif all_timestamps_info :
+    elif all_timestamps_info : # Timestamps were present, but no clips made
         logger.info(f"未创建新片段 (可能所有目标片段已存在或在处理过程中发生错误)。")
-    # No specific message if all_timestamps_info was empty, already logged above.
+
+def generate_concatenated_video_from_timestamps(
+    input_video_path,
+    weapon_time_sources,
+    output_folder,
+    output_filename_suffix="_CONCAT_FROM_PARTS", # 文件名后缀
+    clip_duration=0.8,
+    merge_threshold_factor=3.0
+):
+    """
+    通过以下步骤生成单个连接的视频：
+    1. 将每个定义的片段重新编码为中间文件（保存到磁盘）。
+    2. 使用流复制连接这些中间文件。
+    中间文件不会被删除。
+    """
+    if not os.path.exists(input_video_path):
+        logger.error(f"错误: 输入视频文件未找到 {input_video_path}")
+        return
+
+    all_timestamps_info = []
+    # --- 时间戳收集和排序 (沿用现有逻辑) ---
+    for source_info in weapon_time_sources:
+        file_path = source_info['file_path']
+        weapon_name = source_info['weapon_name']
+        if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+            # logger.info(f"时间文件 {os.path.basename(file_path)} (武器: {weapon_name}) 不存在或为空，跳过。") # 根据用户要求，减少此类日志
+            continue
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                # logger.info(f"读取时间文件: {file_path} (武器: {weapon_name})") # 根据用户要求，减少此类日志
+                for line_num, line_content in enumerate(f, 1):
+                    start_hms = line_content.strip()
+                    if not start_hms:
+                        continue
+                    try:
+                        start_sec = hms_to_seconds(start_hms)
+                        all_timestamps_info.append({
+                            'time_sec': start_sec,
+                            'weapon_name': weapon_name,
+                            'original_hms': start_hms
+                        })
+                    except ValueError as e:
+                        logger.warning(f"解析时间戳 '{start_hms}' 错误 (来自 {os.path.basename(file_path)}, 行 {line_num}): {e}。跳过。")
+        except Exception as e:
+            logger.error(f"读取时间文件 {file_path} 时出错: {e}")
+
+    if not all_timestamps_info:
+        logger.info(f"未收集到有效时间戳进行处理: {os.path.basename(input_video_path)}")
+        return
+
+    all_timestamps_info.sort(key=lambda x: x['time_sec'])
+    # --- 时间戳收集结束 ---
+
+    # 输出文件夹和文件名设置
+    os.makedirs(output_folder, exist_ok=True)
+    video_name_no_ext = os.path.splitext(os.path.basename(input_video_path))[0]
+    input_video_extension = os.path.splitext(input_video_path)[1]
+    if not input_video_extension:
+        logger.warning(f"输入视频 {input_video_path} 无扩展名，默认使用 .mp4 输出。")
+        input_video_extension = ".mp4"
+
+    final_output_video_name = f"{video_name_no_ext}{output_filename_suffix}{input_video_extension}"
+    final_output_path = os.path.join(output_folder, final_output_video_name)
+
+    if os.path.exists(final_output_path):
+        logger.info(f"最终合并视频 {final_output_path} 已存在，跳过。")
+        return
+
+    # 中间文件保存用子文件夹的创建
+    intermediate_folder_name = f"{video_name_no_ext}_intermediate_reencoded_parts" # 文件夹名稍作修改以示区分
+    intermediate_output_folder = os.path.join(output_folder, intermediate_folder_name)
+    os.makedirs(intermediate_output_folder, exist_ok=True)
+    logger.info(f"中间再编码文件将保存在: {intermediate_output_folder}")
+
+    # 片段定义 (沿用现有逻辑)
+    effective_merge_threshold = clip_duration * merge_threshold_factor
+    logger.info(f"准备合并视频片段 (中间文件模式): {os.path.basename(input_video_path)}, "
+                  f"{len(all_timestamps_info)} 个原始时间点. 合并阈值: {effective_merge_threshold}s.")
+
+    segments_to_process = []
+    i = 0
+    while i < len(all_timestamps_info):
+        current_group_timestamps_info = [all_timestamps_info[i]]
+        group_start_time_sec = all_timestamps_info[i]['time_sec']
+        j = i + 1
+        while j < len(all_timestamps_info):
+            next_ts_info = all_timestamps_info[j]
+            time_diff_with_last_in_group_start = next_ts_info['time_sec'] - current_group_timestamps_info[-1]['time_sec']
+            if time_diff_with_last_in_group_start >= 0 and \
+               time_diff_with_last_in_group_start <= effective_merge_threshold:
+                current_group_timestamps_info.append(next_ts_info)
+                j += 1
+            else:
+                break
+        merged_clip_actual_end_time_sec = current_group_timestamps_info[-1]['time_sec'] + clip_duration
+        merged_clip_actual_duration_sec = merged_clip_actual_end_time_sec - group_start_time_sec
+        if merged_clip_actual_duration_sec > 0.001:
+            segments_to_process.append({
+                'start_sec': group_start_time_sec,
+                'duration_sec': merged_clip_actual_duration_sec
+            })
+        else:
+            logger.warning(f"片段时长无效 ({merged_clip_actual_duration_sec:.3f}s) 起始于 {seconds_to_hms(group_start_time_sec)}，跳过。")
+        i = j
+
+    if not segments_to_process:
+        logger.info(f"无有效片段可合并生成中间文件: {os.path.basename(input_video_path)}")
+        return
+
+    logger.info(f"已定义 {len(segments_to_process)} 个有效片段以生成中间文件。")
+
+    intermediate_file_paths = []
+    # 步骤1: 将每个片段单独重新编码并保存为中间文件
+    for idx, segment_info in enumerate(segments_to_process):
+        start_s = segment_info['start_sec']
+        duration_s = segment_info['duration_sec']
+        
+        intermediate_file_name = f"intermediate_segment_{idx:04d}{input_video_extension}"
+        intermediate_file_path = os.path.join(intermediate_output_folder, intermediate_file_name)
+
+        if os.path.exists(intermediate_file_path):
+            logger.info(f"中间文件 {intermediate_file_path} 已存在，将使用此文件。")
+            intermediate_file_paths.append(intermediate_file_path)
+            continue
+
+        logger.info(f"正在生成中间文件 {idx+1}/{len(segments_to_process)}: {intermediate_file_path} (开始: {seconds_to_hms(start_s)}, 持续时间: {duration_s:.2f}s)")
+        
+        command_segment_reencode = [
+            'ffmpeg',
+            '-ss', str(start_s),
+            '-i', input_video_path,
+            '-t', str(duration_s),
+            '-vf', 'setpts=PTS-STARTPTS',
+            '-af', 'asetpts=PTS-STARTPTS',
+            '-c:v', 'libx264',
+            '-preset', 'medium', # 您可以根据需要调整preset，例如 'fast' 或 'veryfast' 以加快速度，但会牺牲一些压缩率
+            '-crf', '19',         # 保持您在之前版本中设定的CRF值
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-loglevel', 'info',  # 保持您在之前版本中设定的loglevel
+            '-y',
+            intermediate_file_path
+        ]
+        try:
+            process = subprocess.run(command_segment_reencode, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            logger.info(f"成功生成中间文件: {intermediate_file_path}")
+            intermediate_file_paths.append(intermediate_file_path)
+            if process.stderr and process.stderr.strip():
+                 logger.debug(f"FFmpeg标准错误输出 (针对 {intermediate_file_name}):\n{process.stderr.strip()}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"生成中间文件 {intermediate_file_name} 时出错 (FFmpeg返回码: {e.returncode})")
+            if e.stderr:
+                logger.error(f"FFmpeg错误输出:\n{e.stderr.strip()}")
+            continue 
+        except Exception as e:
+            logger.error(f"生成中间文件 {intermediate_file_name} 时发生未知错误: {type(e).__name__} - {e}")
+            continue
+
+
+    if not intermediate_file_paths:
+        logger.error("未能生成任何有效的中间文件。已中止合并处理。")
+        return
+
+    logger.info(f"已准备好 {len(intermediate_file_paths)} 个中间文件用于合并。")
+
+    # 步骤2: 创建concat列表文件
+    concat_list_file_path = os.path.join(intermediate_output_folder, "concat_list.txt")
+    try:
+        with open(concat_list_file_path, 'w', encoding='utf-8') as f:
+            for im_file in intermediate_file_paths:
+                # 对于concat demuxer，如果文件路径包含特殊字符或空格，
+                # 'file' 指令后的路径需要特别小心处理。
+                # 最安全的方式之一是确保文件名本身不包含这类字符，
+                # 或者使用绝对路径并配合 -safe 0。
+                # ここではファイル名のみ（concat_list.txtと同じディレクトリにある想定）
+                # -> 这里使用相对路径，因为concat_list.txt和中间文件在同一个文件夹
+                f.write(f"file '{os.path.basename(im_file)}'\n")
+        logger.info(f"已创建Concat列表文件: {concat_list_file_path}")
+    except Exception as e:
+        logger.error(f"创建Concat列表文件 {concat_list_file_path} 时出错: {e}")
+        return
+
+    # 步骤3: 使用流复制合并中间文件
+    command_concat = [
+        'ffmpeg',
+        '-f', 'concat',
+        '-safe', '0', 
+        '-i', concat_list_file_path,
+        '-c', 'copy', 
+        '-loglevel', 'info', # 保持和中间文件生成时一致的日志级别
+        '-y',
+        final_output_path
+    ]
+    try:
+        logger.info(f"正在合并中间文件 (输出至: {final_output_path})...")
+        process = subprocess.run(command_concat, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        logger.info(f"成功生成最终合并视频: {final_output_path}")
+        if process.stderr and process.stderr.strip():
+             logger.debug(f"FFmpeg标准错误输出 (针对最终合并):\n{process.stderr.strip()}")
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"最终视频合并时出错 (FFmpeg返回码: {e.returncode})")
+        if e.stderr:
+            logger.error(f"FFmpeg错误输出:\n{e.stderr.strip()}")
+    except Exception as e:
+        logger.error(f"最终视频合并时发生未知错误: {type(e).__name__} - {e}")
+
+    logger.info(f"处理完成。中间文件保留在 {intermediate_output_folder}。")

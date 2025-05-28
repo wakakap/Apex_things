@@ -17,13 +17,13 @@ WEAPON_METADATA = {
     "kraber": {"suffix": "kraber", "has_infinite": False, "display_name": "Kraber", "scan_logic_type": "standard"},
     "charge_rifle": {"suffix": "charge", "has_infinite": False, "display_name": "Charge Rifle", "scan_logic_type": "standard"},
     "sentinel": {"suffix": "sentinel", "has_infinite": False, "display_name": "Sentinel", "scan_logic_type": "standard"},
-    "peacekeeper": {"suffix": "pk_red", "has_infinite": False, "display_name": "Peacekeeper (Red)", "scan_logic_type": "standard"},
+    "peacekeeper": {"suffix": "pkred", "has_infinite": False, "display_name": "Peacekeeper (Red)", "scan_logic_type": "standard"},
     "mastiff": {"suffix": "mastiff", "has_infinite": False, "display_name": "Mastiff", "scan_logic_type": "standard"},
     "longbow": {"suffix": "longbow", "has_infinite": False, "display_name": "Longbow DMR", "scan_logic_type": "standard"},
 
     # Group 2: Rapid-fire scan logic, no infinite
     "eva8": {"suffix": "eva", "has_infinite": False, "display_name": "EVA-8 Auto", "scan_logic_type": "rapid_fire"},
-    "mozambique_double": {"suffix": "mozambique_double", "has_infinite": False, "display_name": "Mozambique (Double)", "scan_logic_type": "rapid_fire"},
+    "mozambique_double": {"suffix": "mozambiquedouble", "has_infinite": False, "display_name": "Mozambique (Double)", "scan_logic_type": "rapid_fire"},
     "r3030": {"suffix": "3030", "has_infinite": False, "display_name": "30-30 Repeater", "scan_logic_type": "rapid_fire"}, # Moved to Group 2
     "wingman": {"suffix": "wingman", "has_infinite": False, "display_name": "Wingman", "scan_logic_type": "rapid_fire"}, # Moved to Group 2
     "g7": {"suffix": "g7", "has_infinite": False, "display_name": "G7 Scout", "scan_logic_type": "rapid_fire"},
@@ -314,6 +314,7 @@ def find_shooting_moments(video_path,
         timestamp_sec = current_frame_num / fps
         if current_frame_num >= last_coarse_log_frame + (frame_skip_coarse * 5) : 
             active_prev_numbers_str = ", ".join([f"{name}: {prev_number_coarse_by_weapon.get(name, 'N/A')}" for name in selected_weapon_names])
+            # logger.info(f"[Analysis 粗] : Frame {current_frame_num}/{total_frames} ({seconds_to_hms(timestamp_sec)})")
             logger.info(f"[Analysis 粗] : Frame {current_frame_num}/{total_frames} ({seconds_to_hms(timestamp_sec)}), 上个数字 (已选武器): {active_prev_numbers_str}")
             last_coarse_log_frame = current_frame_num
 
