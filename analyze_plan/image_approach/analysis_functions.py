@@ -28,7 +28,7 @@ WEAPON_METADATA = {
     "wingman": {"suffix": "wingman", "has_infinite": False, "display_name": "Wingman", "scan_logic_type": "rapid_fire"}, # Moved to Group 2
     "g7": {"suffix": "g7", "has_infinite": False, "display_name": "G7 Scout", "scan_logic_type": "rapid_fire"},
     "rampage": {"suffix": "rampage", "has_infinite": False, "display_name": "Rampage LMG", "scan_logic_type": "rapid_fire"},
-    "p2020_double": {"suffix": "p2020_double", "has_infinite": False, "display_name": "P2020 (Double)", "scan_logic_type": "rapid_fire"},
+    "p2020_double": {"suffix": "p2020double", "has_infinite": False, "display_name": "P2020 (Double)", "scan_logic_type": "rapid_fire"},
     "hemlok": {"suffix": "hemlok", "has_infinite": False, "display_name": "Hemlok", "scan_logic_type": "rapid_fire"},
     "spitfire": {"suffix": "spitfire", "has_infinite": False, "display_name": "Spitfire", "scan_logic_type": "rapid_fire"},
     "nemesis": {"suffix": "nemesis", "has_infinite": False, "display_name": "Nemesis", "scan_logic_type": "rapid_fire"},
@@ -246,8 +246,8 @@ def find_shooting_moments(video_path,
     logger.info(f"武器激活ROI (x1,y1,x2,y2): ({weapon_roi_x1},{weapon_roi_y1},{weapon_roi_x2},{weapon_roi_y2})")
     logger.info(f"武器激活阈值: {weapon_activation_similarity_threshold}")
     if "bow" in selected_weapon_names:
-        logger.info(f"  弓用无限符号模板: {os.path.basename(infinite_symbol_template_path)}, 阈值: {similarity_threshold_infinite}")
-        logger.info(f"  弓用无限符号ROI: ({infinite_roi_x1},{infinite_roi_y1},{infinite_roi_x2},{infinite_roi_y2})")
+        logger.info(f"弓用无限符号模板: {os.path.basename(infinite_symbol_template_path)}, 阈值: {similarity_threshold_infinite}")
+        logger.info(f"弓用无限符号ROI: ({infinite_roi_x1},{infinite_roi_y1},{infinite_roi_x2},{infinite_roi_y2})")
     logger.info(f"数字ROI (x1,y1,x2,y2,m): ({number_roi_x1},{number_roi_y1},{number_roi_x2},{number_roi_y2}, {mid_split_x}).")
     logger.info(f"粗扫描间隔: {coarse_interval_seconds}s, 精扫描间隔: {fine_interval_seconds}s. 开始时间: {start_time}")
 

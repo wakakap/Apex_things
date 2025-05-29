@@ -653,30 +653,27 @@ def _generate_merged_clip_ffmpeg_command(
         logger.error(f"Unknown error processing merged clip (start: {formatted_start_time_for_ffmpeg}): {e}")
     return False
 
-def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_time_sources, output_folder, clip_duration=0.8, merge_threshold_factor=3.0):
+def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_time_sources, output_folder, clip_duration=0.8, merge_threshold_factor=2.0):
     """
     Generates clips from multiple weapon timestamp files, merging close timestamps
-    chronologically with a global clip index for merged groups.
+    chronologically. The start of the merged clip is extended backwards by merge_threshold_factor.
 
     Args:
         input_video_path (str): Path to the input video.
         weapon_time_sources (list): A list of dictionaries, where each dict is
                                     {'file_path': str, 'weapon_name': str}.
         output_folder (str): Folder to save the clips.
-        clip_duration (float): Base duration of each individual clip event in seconds.
-                               Timestamps will be merged if the current one starts
-                               within 'clip_duration * merge_threshold_factor' seconds
-                               after the *previous one started*.
-        merge_threshold_factor (float): Multiplier for clip_duration to determine merge window.
-                                        Default 1.0 means timestamps are merged if the next starts
-                                        before the previous one would have ended.
+        clip_duration (float): Base duration appended after the LAST timestamp in a merged group.
+        merge_threshold_factor (float): Time in seconds. Defines the max gap between starts of
+                                        consecutive events to be merged. Also, the merged clip's
+                                        start time is pulled back by this amount from the first
+                                        event's start time (capped at 0).
     """
     if not os.path.exists(input_video_path):
         logger.error(f"错误: 输入视频文件未找到 {input_video_path}")
         return
 
-    all_timestamps_info = [] # Will store dicts: {'time_sec': float, 'weapon_name': str, 'original_hms': str}
-    
+    all_timestamps_info = [] 
     for source_info in weapon_time_sources:
         file_path = source_info['file_path']
         weapon_name = source_info['weapon_name']
@@ -716,58 +713,56 @@ def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_tim
         logger.warning(f"警告: 输入视频 {input_video_path} 没有文件扩展名。默认使用 .mp4 输出。")
         input_video_extension = ".mp4"
 
-    effective_merge_threshold = clip_duration * merge_threshold_factor
+    # effective_merge_threshold is now directly merge_threshold_factor (in seconds)
+    effective_merge_threshold_seconds = merge_threshold_factor 
     logger.info(f"开始合并剪辑视频: {os.path.basename(input_video_path)}, "
                   f"共 {len(all_timestamps_info)} 个原始时间点 (来自所有选定武器, 已排序). "
-                  f"基础片段时长: {clip_duration}s. 合并时间阈值 (从上个片段开始算): {effective_merge_threshold}s.")
+                  f"基础片段时长 (加在最后事件后): {clip_duration}s. 合并时间阈值 (秒): {effective_merge_threshold_seconds}s.")
     
     clips_created_count = 0
-    merged_group_global_idx = 0 # Global index for the output merged clips
+    merged_group_global_idx = 0 
     
     i = 0
     while i < len(all_timestamps_info):
-        current_group_timestamps_info = [all_timestamps_info[i]] # Start a new group with the current timestamp
-        group_start_time_sec = all_timestamps_info[i]['time_sec']
+        current_group_timestamps_info = [all_timestamps_info[i]] 
+        # group_first_event_start_time_sec is the actual start time of the first event in the group
+        group_first_event_start_time_sec = all_timestamps_info[i]['time_sec']
         
-        # Look ahead to merge subsequent timestamps
         j = i + 1
         while j < len(all_timestamps_info):
             next_ts_info = all_timestamps_info[j]
-            
-            # Calculate the time difference between the start of the next timestamp
-            # and the start of the last timestamp currently in the group.
             time_diff_with_last_in_group_start = next_ts_info['time_sec'] - current_group_timestamps_info[-1]['time_sec']
 
-            # MODIFIED CONDITION:
-            # Merge if the next timestamp is not before the last one in the group (i.e., time moves forward or is the same),
-            # AND the time difference from the start of the last timestamp in the group
-            # is within (less than or equal to) the effective_merge_threshold.
             if time_diff_with_last_in_group_start >= 0 and \
-               time_diff_with_last_in_group_start <= effective_merge_threshold:
+               time_diff_with_last_in_group_start <= effective_merge_threshold_seconds + clip_duration: # Use direct seconds threshold
                 current_group_timestamps_info.append(next_ts_info)
                 j += 1
             else:
-                break # End of current merge group
+                break 
         
-        # Process the collected group
-        merged_group_global_idx += 1 # Increment for each group processed (even if it's a single event)
+        merged_group_global_idx += 1 
         
-        # Determine the actual duration of this merged clip
-        # It starts at the first timestamp in the group.
-        # It ends `clip_duration` seconds AFTER the LAST timestamp in the group started.
-        merged_clip_actual_end_time_sec = current_group_timestamps_info[-1]['time_sec'] + clip_duration
-        merged_clip_actual_duration_sec = merged_clip_actual_end_time_sec - group_start_time_sec
+        # Adjust the actual start time for FFmpeg by pulling it back
+        adjusted_ffmpeg_start_time_sec = max(0, group_first_event_start_time_sec - merge_threshold_factor)
 
-        if merged_clip_actual_duration_sec <= 0.001: # Use a small epsilon to avoid issues with float precision
+        # The clip conceptually ends 'clip_duration' seconds AFTER the LAST timestamp in the group started.
+        group_conceptual_end_time_sec = current_group_timestamps_info[-1]['time_sec'] + clip_duration
+        
+        # Calculate new duration based on adjusted start and conceptual end
+        adjusted_ffmpeg_duration_sec = group_conceptual_end_time_sec - adjusted_ffmpeg_start_time_sec
+
+
+        if adjusted_ffmpeg_duration_sec <= 0.001: 
             original_hms_list = [ts['original_hms'] for ts in current_group_timestamps_info]
-            logger.warning(f"计算出的合并片段时长过短或为零/负数 ({merged_clip_actual_duration_sec:.3f}s) for group starting {seconds_to_hms(group_start_time_sec)} "
-                           f"(Orig HMS: {', '.join(original_hms_list)}). 跳过此组。")
-            i = j # Move to the start of the next potential group
+            logger.warning(f"计算出的合并片段时长过短或为零/负数 ({adjusted_ffmpeg_duration_sec:.3f}s) "
+                           f"for group originally starting {seconds_to_hms(group_first_event_start_time_sec)} "
+                           f"(FFmpeg start: {seconds_to_hms(adjusted_ffmpeg_start_time_sec)}, Orig HMS: {', '.join(original_hms_list)}). 跳过此组。")
+            i = j 
             continue
 
-        # Create filename
-        formatted_start_time_for_ffmpeg = seconds_to_hms(group_start_time_sec)
-        safe_time_str_for_filename = formatted_start_time_for_ffmpeg.replace(':', '').replace('.', '')
+        # Filename uses the original start time of the first event for clarity
+        formatted_original_start_time_for_filename = seconds_to_hms(group_first_event_start_time_sec)
+        safe_time_str_for_filename = formatted_original_start_time_for_filename.replace(':', '').replace('.', '')
         
         weapon_names_in_group = sorted(list(set([ts['weapon_name'][:3].lower() for ts in current_group_timestamps_info]))) 
         weapons_str_part = "_".join(weapon_names_in_group)
@@ -778,50 +773,47 @@ def generate_clips_from_multiple_weapon_times_merge(input_video_path, weapon_tim
 
         if os.path.exists(output_clip_path):
             logger.info(f"合并片段 {output_clip_path} 已存在，跳过。")
-        elif _generate_merged_clip_ffmpeg_command(
+        elif _generate_merged_clip_ffmpeg_command( # This helper function is assumed to be defined elsewhere
             input_video_path, 
-            group_start_time_sec, 
-            merged_clip_actual_duration_sec, 
+            adjusted_ffmpeg_start_time_sec, # Use adjusted start for ffmpeg
+            adjusted_ffmpeg_duration_sec,   # Use adjusted duration for ffmpeg
             output_clip_path
         ):
             clips_created_count += 1
             
-        i = j # Move to the start of the next potential group
+        i = j 
 
     if clips_created_count > 0:
         logger.info(f"合并剪辑完成。共创建 {clips_created_count} 个新片段。")
-    elif all_timestamps_info : # Timestamps were present, but no clips made
+    elif all_timestamps_info : 
         logger.info(f"未创建新片段 (可能所有目标片段已存在或在处理过程中发生错误)。")
+
 
 def generate_concatenated_video_from_timestamps(
     input_video_path,
     weapon_time_sources,
     output_folder,
-    output_filename_suffix="_CONCAT_FROM_PARTS", # 文件名后缀
+    output_filename_suffix="_CONCAT_FROM_PARTS", 
     clip_duration=0.8,
-    merge_threshold_factor=3.0
+    merge_threshold_factor=2.0 # Now in seconds
 ):
     """
-    通过以下步骤生成单个连接的视频：
-    1. 将每个定义的片段重新编码为中间文件（保存到磁盘）。
-    2. 使用流复制连接这些中间文件。
-    中间文件不会被删除。
+    Generates a single concatenated video.
+    The start of each merged segment is extended backwards by merge_threshold_factor.
+    Intermediate files are re-encoded and then concatenated.
     """
     if not os.path.exists(input_video_path):
         logger.error(f"错误: 输入视频文件未找到 {input_video_path}")
         return
 
     all_timestamps_info = []
-    # --- 时间戳收集和排序 (沿用现有逻辑) ---
     for source_info in weapon_time_sources:
         file_path = source_info['file_path']
         weapon_name = source_info['weapon_name']
         if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-            # logger.info(f"时间文件 {os.path.basename(file_path)} (武器: {weapon_name}) 不存在或为空，跳过。") # 根据用户要求，减少此类日志
             continue
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                # logger.info(f"读取时间文件: {file_path} (武器: {weapon_name})") # 根据用户要求，减少此类日志
                 for line_num, line_content in enumerate(f, 1):
                     start_hms = line_content.strip()
                     if not start_hms:
@@ -843,9 +835,7 @@ def generate_concatenated_video_from_timestamps(
         return
 
     all_timestamps_info.sort(key=lambda x: x['time_sec'])
-    # --- 时间戳收集结束 ---
 
-    # 输出文件夹和文件名设置
     os.makedirs(output_folder, exist_ok=True)
     video_name_no_ext = os.path.splitext(os.path.basename(input_video_path))[0]
     input_video_extension = os.path.splitext(input_video_path)[1]
@@ -860,41 +850,51 @@ def generate_concatenated_video_from_timestamps(
         logger.info(f"最终合并视频 {final_output_path} 已存在，跳过。")
         return
 
-    # 中间文件保存用子文件夹的创建
-    intermediate_folder_name = f"{video_name_no_ext}_intermediate_reencoded_parts" # 文件夹名稍作修改以示区分
+    intermediate_folder_name = f"{video_name_no_ext}_intermediate_reencoded_parts"
     intermediate_output_folder = os.path.join(output_folder, intermediate_folder_name)
     os.makedirs(intermediate_output_folder, exist_ok=True)
     logger.info(f"中间再编码文件将保存在: {intermediate_output_folder}")
 
-    # 片段定义 (沿用现有逻辑)
-    effective_merge_threshold = clip_duration * merge_threshold_factor
+    # effective_merge_threshold is now directly merge_threshold_factor (in seconds)
+    effective_merge_threshold_seconds = merge_threshold_factor
     logger.info(f"准备合并视频片段 (中间文件模式): {os.path.basename(input_video_path)}, "
-                  f"{len(all_timestamps_info)} 个原始时间点. 合并阈值: {effective_merge_threshold}s.")
+                  f"{len(all_timestamps_info)} 个原始时间点. 合并阈值 (秒): {effective_merge_threshold_seconds}s.")
 
     segments_to_process = []
     i = 0
     while i < len(all_timestamps_info):
         current_group_timestamps_info = [all_timestamps_info[i]]
-        group_start_time_sec = all_timestamps_info[i]['time_sec']
+        # group_first_event_start_time_sec is the actual start time of the first event in the group
+        group_first_event_start_time_sec = all_timestamps_info[i]['time_sec']
+        
         j = i + 1
         while j < len(all_timestamps_info):
             next_ts_info = all_timestamps_info[j]
             time_diff_with_last_in_group_start = next_ts_info['time_sec'] - current_group_timestamps_info[-1]['time_sec']
             if time_diff_with_last_in_group_start >= 0 and \
-               time_diff_with_last_in_group_start <= effective_merge_threshold:
+               time_diff_with_last_in_group_start <= effective_merge_threshold_seconds + clip_duration: #condition of merge
                 current_group_timestamps_info.append(next_ts_info)
                 j += 1
             else:
                 break
-        merged_clip_actual_end_time_sec = current_group_timestamps_info[-1]['time_sec'] + clip_duration
-        merged_clip_actual_duration_sec = merged_clip_actual_end_time_sec - group_start_time_sec
-        if merged_clip_actual_duration_sec > 0.001:
+        
+        # Adjust the actual start time for the segment by pulling it back
+        adjusted_segment_start_time_sec = max(0, group_first_event_start_time_sec - merge_threshold_factor)
+
+        # The segment conceptually ends 'clip_duration' seconds AFTER the LAST timestamp in the group started.
+        segment_conceptual_end_time_sec = current_group_timestamps_info[-1]['time_sec'] + clip_duration
+        
+        # Calculate new duration based on adjusted start and conceptual end
+        adjusted_segment_duration_sec = segment_conceptual_end_time_sec - adjusted_segment_start_time_sec
+
+        if adjusted_segment_duration_sec > 0.001:
             segments_to_process.append({
-                'start_sec': group_start_time_sec,
-                'duration_sec': merged_clip_actual_duration_sec
+                'start_sec': adjusted_segment_start_time_sec, # Use adjusted start for segment
+                'duration_sec': adjusted_segment_duration_sec # Use adjusted duration for segment
             })
         else:
-            logger.warning(f"片段时长无效 ({merged_clip_actual_duration_sec:.3f}s) 起始于 {seconds_to_hms(group_start_time_sec)}，跳过。")
+            logger.warning(f"片段时长无效 ({adjusted_segment_duration_sec:.3f}s) "
+                           f"原起始于 {seconds_to_hms(group_first_event_start_time_sec)} (FFmpeg start: {seconds_to_hms(adjusted_segment_start_time_sec)}). 跳过。")
         i = j
 
     if not segments_to_process:
@@ -904,7 +904,6 @@ def generate_concatenated_video_from_timestamps(
     logger.info(f"已定义 {len(segments_to_process)} 个有效片段以生成中间文件。")
 
     intermediate_file_paths = []
-    # 步骤1: 将每个片段单独重新编码并保存为中间文件
     for idx, segment_info in enumerate(segments_to_process):
         start_s = segment_info['start_sec']
         duration_s = segment_info['duration_sec']
@@ -924,14 +923,14 @@ def generate_concatenated_video_from_timestamps(
             '-ss', str(start_s),
             '-i', input_video_path,
             '-t', str(duration_s),
-            '-vf', 'setpts=PTS-STARTPTS',
-            '-af', 'asetpts=PTS-STARTPTS',
+            '-vf', 'setpts=PTS-STARTPTS', # Reset timestamps for clean concatenation
+            '-af', 'asetpts=PTS-STARTPTS',# Reset audio timestamps
             '-c:v', 'libx264',
-            '-preset', 'medium', # 您可以根据需要调整preset，例如 'fast' 或 'veryfast' 以加快速度，但会牺牲一些压缩率
-            '-crf', '19',         # 保持您在之前版本中设定的CRF值
+            '-preset', 'medium', 
+            '-crf', '19',         
             '-c:a', 'aac',
             '-b:a', '192k',
-            '-loglevel', 'info',  # 保持您在之前版本中设定的loglevel
+            '-loglevel', 'error',  
             '-y',
             intermediate_file_path
         ]
@@ -957,36 +956,42 @@ def generate_concatenated_video_from_timestamps(
 
     logger.info(f"已准备好 {len(intermediate_file_paths)} 个中间文件用于合并。")
 
-    # 步骤2: 创建concat列表文件
     concat_list_file_path = os.path.join(intermediate_output_folder, "concat_list.txt")
     try:
         with open(concat_list_file_path, 'w', encoding='utf-8') as f:
             for im_file in intermediate_file_paths:
-                # 对于concat demuxer，如果文件路径包含特殊字符或空格，
-                # 'file' 指令后的路径需要特别小心处理。
-                # 最安全的方式之一是确保文件名本身不包含这类字符，
-                # 或者使用绝对路径并配合 -safe 0。
-                # ここではファイル名のみ（concat_list.txtと同じディレクトリにある想定）
-                # -> 这里使用相对路径，因为concat_list.txt和中间文件在同一个文件夹
+                # Ensure paths in concat_list.txt are relative to where ffmpeg is run for concat, or use absolute.
+                # Here, ffmpeg for concat is run from the intermediate_output_folder's context if -i is relative path.
+                # Using just basename as ffmpeg will be run with concat_list_file_path which is in intermediate_output_folder
                 f.write(f"file '{os.path.basename(im_file)}'\n")
         logger.info(f"已创建Concat列表文件: {concat_list_file_path}")
     except Exception as e:
         logger.error(f"创建Concat列表文件 {concat_list_file_path} 时出错: {e}")
         return
 
-    # 步骤3: 使用流复制合并中间文件
     command_concat = [
         'ffmpeg',
         '-f', 'concat',
         '-safe', '0', 
-        '-i', concat_list_file_path,
-        '-c', 'copy', 
-        '-loglevel', 'info', # 保持和中间文件生成时一致的日志级别
+        '-i', concat_list_file_path, # Path to the list file
+        '-c', 'copy', # Stream copy since intermediate files are already re-encoded compatibly
+        '-loglevel', 'error', 
         '-y',
-        final_output_path
+        final_output_path # Final output path
     ]
     try:
         logger.info(f"正在合并中间文件 (输出至: {final_output_path})...")
+        # For concat, ffmpeg needs to find the files listed in concat_list.txt.
+        # The paths in concat_list.txt are relative to the location of concat_list.txt itself if -safe 0 is used.
+        # So, running ffmpeg with its CWD as intermediate_output_folder, or using absolute paths in concat_list.txt.
+        # Here, using `concat_list_file_path` which is absolute/relative from script's CWD.
+        # And `os.path.basename(im_file)` means ffmpeg needs to be "in" `intermediate_output_folder` or paths need to be relative to ffmpeg's CWD.
+        # A safer way is to use absolute paths in concat_list.txt or ensure ffmpeg's cwd.
+        # However, `ffmpeg -i list.txt` usually resolves files in `list.txt` relative to `list.txt`'s location with `-safe 0`.
+        
+        # For simplicity, assuming ffmpeg handles this correctly when `concat_list_file_path` is provided.
+        # If issues, might need to use `cwd=intermediate_output_folder` in subprocess.run.
+
         process = subprocess.run(command_concat, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
         logger.info(f"成功生成最终合并视频: {final_output_path}")
         if process.stderr and process.stderr.strip():
