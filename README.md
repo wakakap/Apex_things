@@ -33,7 +33,7 @@ command = [
 downloaded_file_path = subprocess.run(command, check=True, text=True, capture_output=True, encoding='utf-8')
 ```
 
-如果用本工具下载视频，`video_urls.txt`用于决定要下载哪些视频。每行格式为`https://www.twitch.tv/videos/xxxxxx,02:29:30.000,05:37:10.000`下载完成后，之后的处理中的时间戳都已本地视频为准，而不是原网络视频的时间。下载和处理两个部分互相独立。
+如果用本工具下载视频，`video_urls.txt`用于决定要下载哪些视频。每行格式为`https://www.twitch.tv/videos/xxxxxx,02:29:30.000,05:37:10.000`下载完成后，之后的处理中的时间戳都以本地视频为准，而不是原网络视频的时间。下载和分析两个部分互相独立。
 
 偶尔会有无法续传的情况，经验上bash会好一点。如果发现下载停止，可以不关bash，把网重新连一下续传概率更高。
 
@@ -125,9 +125,10 @@ graph TD
     P -- "读取选择的视频和武器的 'shooting_{weapon_name}.txt' 文件" --> R{"(P3) 处理时间戳列表"};
     R -- "Individual 模式" --> S["(P3) 为每个时间戳准备单独剪辑"];
     R -- "Merged 模式" --> T["(P3) 将时间相近的时间戳分组准备合并剪辑"];
-    S --> U["(P3) 调用 FFmpeg 进行视频剪辑 (固定时长)"];
-    T --> U;
-    U --> V["(P3) 将剪辑好的片段保存到 'clips_output/{video_id}/clips_{mode_name}/' 文件夹"];
+    R -- "Cancatenate 模式" --> Z["(P3) 同Merged，但会重编码合并成完整视频"];
+    S --> V["(P3) 调用 FFmpeg "];
+    T --> V;
+    Z --> V;
     V --> W["处理完成"];
 ```
 ## 特殊说明
