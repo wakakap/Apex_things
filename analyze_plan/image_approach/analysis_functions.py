@@ -19,6 +19,7 @@ WEAPON_METADATA = {
     "sentinel": {"suffix": "sentinel", "has_infinite": False, "display_name": "Sentinel", "scan_logic_type": "standard", "display_name_ch": "哨兵"},
     "peacekeeper": {"suffix": "pkred", "has_infinite": False, "display_name": "Peacekeeper (Red)", "scan_logic_type": "standard", "display_name_ch": "和平捍卫者 (红)"},
     "mastiff": {"suffix": "mastiff", "has_infinite": False, "display_name": "Mastiff", "scan_logic_type": "standard", "display_name_ch": "獒犬"},
+    "tripletale": {"suffix": "triple", "has_infinite": False, "display_name": "Tripletale", "scan_logic_type": "standard", "display_name_ch": "三重"},
     "longbow": {"suffix": "longbow", "has_infinite": False, "display_name": "Longbow DMR", "scan_logic_type": "standard", "display_name_ch": "长弓精确步枪"},
 
     # Group 2: Rapid-fire scan logic, no infinite
