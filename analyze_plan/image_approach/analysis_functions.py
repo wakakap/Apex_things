@@ -13,35 +13,34 @@ logger = logging.getLogger(__name__)
 # display_name is for the GUI.
 WEAPON_METADATA = {
     # Group 1: Standard scan logic, bow has_infinite
-    "bow": {"suffix": "bow", "has_infinite": True, "display_name": "Bocek Bow", "scan_logic_type": "standard"},
-    "kraber": {"suffix": "kraber", "has_infinite": False, "display_name": "Kraber", "scan_logic_type": "standard"},
-    "charge_rifle": {"suffix": "charge", "has_infinite": False, "display_name": "Charge Rifle", "scan_logic_type": "standard"},
-    "sentinel": {"suffix": "sentinel", "has_infinite": False, "display_name": "Sentinel", "scan_logic_type": "standard"},
-    "peacekeeper": {"suffix": "pkred", "has_infinite": False, "display_name": "Peacekeeper (Red)", "scan_logic_type": "standard"},
-    "mastiff": {"suffix": "mastiff", "has_infinite": False, "display_name": "Mastiff", "scan_logic_type": "standard"},
-    "longbow": {"suffix": "longbow", "has_infinite": False, "display_name": "Longbow DMR", "scan_logic_type": "standard"},
+    "bow": {"suffix": "bow", "has_infinite": True, "display_name": "Bocek Bow", "scan_logic_type": "standard", "display_name_ch": "波塞克弓"},
+    "kraber": {"suffix": "kraber", "has_infinite": False, "display_name": "Kraber", "scan_logic_type": "standard", "display_name_ch": "克雷贝尔"},
+    "charge_rifle": {"suffix": "charge", "has_infinite": False, "display_name": "Charge Rifle", "scan_logic_type": "standard", "display_name_ch": "充能步枪"},
+    "sentinel": {"suffix": "sentinel", "has_infinite": False, "display_name": "Sentinel", "scan_logic_type": "standard", "display_name_ch": "哨兵"},
+    "peacekeeper": {"suffix": "pkred", "has_infinite": False, "display_name": "Peacekeeper (Red)", "scan_logic_type": "standard", "display_name_ch": "和平捍卫者 (红)"},
+    "mastiff": {"suffix": "mastiff", "has_infinite": False, "display_name": "Mastiff", "scan_logic_type": "standard", "display_name_ch": "獒犬"},
+    "longbow": {"suffix": "longbow", "has_infinite": False, "display_name": "Longbow DMR", "scan_logic_type": "standard", "display_name_ch": "长弓精确步枪"},
 
     # Group 2: Rapid-fire scan logic, no infinite
-    "eva8": {"suffix": "eva", "has_infinite": False, "display_name": "EVA-8 Auto", "scan_logic_type": "rapid_fire"},
-    "mozambique_double": {"suffix": "mozambiquedouble", "has_infinite": False, "display_name": "Mozambique (Double)", "scan_logic_type": "rapid_fire"},
-    "r3030": {"suffix": "3030", "has_infinite": False, "display_name": "30-30 Repeater", "scan_logic_type": "rapid_fire"}, # Moved to Group 2
-    "wingman": {"suffix": "wingman", "has_infinite": False, "display_name": "Wingman", "scan_logic_type": "rapid_fire"}, # Moved to Group 2
-    "g7": {"suffix": "g7", "has_infinite": False, "display_name": "G7 Scout", "scan_logic_type": "rapid_fire"},
-    "rampage": {"suffix": "rampage", "has_infinite": False, "display_name": "Rampage LMG", "scan_logic_type": "rapid_fire"},
-    "p2020_double": {"suffix": "p2020double", "has_infinite": False, "display_name": "P2020 (Double)", "scan_logic_type": "rapid_fire"},
-    "hemlok": {"suffix": "hemlok", "has_infinite": False, "display_name": "Hemlok", "scan_logic_type": "rapid_fire"},
-    "spitfire": {"suffix": "spitfire", "has_infinite": False, "display_name": "Spitfire", "scan_logic_type": "rapid_fire"},
-    "nemesis": {"suffix": "nemesis", "has_infinite": False, "display_name": "Nemesis", "scan_logic_type": "rapid_fire"},
-    "flatline": {"suffix": "flatline", "has_infinite": False, "display_name": "Flatline", "scan_logic_type": "rapid_fire"},
-    "havoc": {"suffix": "havoc", "has_infinite": False, "display_name": "Havoc", "scan_logic_type": "rapid_fire"},
-    "re45": {"suffix": "re45", "has_infinite": False, "display_name": "RE-45 Auto", "scan_logic_type": "rapid_fire"},
-    "r301": {"suffix": "r301", "has_infinite": False, "display_name": "R-301 Carbine", "scan_logic_type": "rapid_fire"},
-    "devotion": {"suffix": "devotion", "has_infinite": False, "display_name": "Devotion LMG", "scan_logic_type": "rapid_fire"},
-    "car": {"suffix": "car", "has_infinite": False, "display_name": "C.A.R. SMG", "scan_logic_type": "rapid_fire"},
-    "r99": {"suffix": "r99", "has_infinite": False, "display_name": "R-99 SMG", "scan_logic_type": "rapid_fire"},
+    "eva8": {"suffix": "eva", "has_infinite": False, "display_name": "EVA-8 Auto", "scan_logic_type": "rapid_fire", "display_name_ch": "EVA-8 自动霰弹枪"},
+    "mozambique_double": {"suffix": "mozambiquedouble", "has_infinite": False, "display_name": "Mozambique (Double)", "scan_logic_type": "rapid_fire", "display_name_ch": "莫桑比克 (双发)"},
+    "r3030": {"suffix": "3030", "has_infinite": False, "display_name": "30-30 Repeater", "scan_logic_type": "rapid_fire", "display_name_ch": "30-30 重复枪"},
+    "wingman": {"suffix": "wingman", "has_infinite": False, "display_name": "Wingman", "scan_logic_type": "rapid_fire", "display_name_ch": "辅助手枪"},
+    "g7": {"suffix": "g7", "has_infinite": False, "display_name": "G7 Scout", "scan_logic_type": "rapid_fire", "display_name_ch": "G7 侦察枪"},
+    "rampage": {"suffix": "rampage", "has_infinite": False, "display_name": "Rampage LMG", "scan_logic_type": "rapid_fire", "display_name_ch": "暴走轻机枪"},
+    "p2020_double": {"suffix": "p2020double", "has_infinite": False, "display_name": "P2020 (Double)", "scan_logic_type": "rapid_fire", "display_name_ch": "P2020 (双发)"},
+    "hemlok": {"suffix": "hemlok", "has_infinite": False, "display_name": "Hemlok", "scan_logic_type": "rapid_fire", "display_name_ch": "赫姆洛克"},
+    "spitfire": {"suffix": "spitfire", "has_infinite": False, "display_name": "Spitfire", "scan_logic_type": "rapid_fire", "display_name_ch": "喷火"},
+    "nemesis": {"suffix": "nemesis", "has_infinite": False, "display_name": "Nemesis", "scan_logic_type": "rapid_fire", "display_name_ch": "复仇女神"},
+    "flatline": {"suffix": "flatline", "has_infinite": False, "display_name": "Flatline", "scan_logic_type": "rapid_fire", "display_name_ch": "平行步枪"},
+    "havoc": {"suffix": "havoc", "has_infinite": False, "display_name": "Havoc", "scan_logic_type": "rapid_fire", "display_name_ch": "哈沃克"},
+    "re45": {"suffix": "re45", "has_infinite": False, "display_name": "RE-45 Auto", "scan_logic_type": "rapid_fire", "display_name_ch": "RE-45 自动手枪"},
+    "r301": {"suffix": "r301", "has_infinite": False, "display_name": "R-301 Carbine", "scan_logic_type": "rapid_fire", "display_name_ch": "R-301 卡宾枪"},
+    "devotion": {"suffix": "devotion", "has_infinite": False, "display_name": "Devotion LMG", "scan_logic_type": "rapid_fire", "display_name_ch": "专注轻机枪"},
+    "car": {"suffix": "car", "has_infinite": False, "display_name": "C.A.R. SMG", "scan_logic_type": "rapid_fire", "display_name_ch": "C.A.R.冲锋枪"},
+    "r99": {"suffix": "r99", "has_infinite": False, "display_name": "R-99 SMG", "scan_logic_type": "rapid_fire", "display_name_ch": "R-99 冲锋枪"},
     # Add other weapons here if their templates (e.g. template_g7.png -> "g7": {"suffix": "g7", ...}) exist
 }
-
 
 def compare_score_iou(frame_gray_processed, template_image_path, debug=False):
     try:

@@ -104,7 +104,7 @@ def generate_clips_from_multiple_weapon_times(input_video_path, weapon_time_sour
         
         try:
             # logger.info(f"执行剪辑命令 ({i+1}/{len(all_timestamps_info)} for {current_weapon_name} @ {original_hms_for_log}): {' '.join(command)}") 
-            process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace',creationflags=subprocess.CREATE_NO_WINDOW)
             
             # if process.stdout and process.stdout.strip():
             #     logger.debug(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
@@ -187,7 +187,7 @@ def clip_video_ffmpeg(input_video_path, shooting_times_file, output_folder, clip
             # Removed: '-c:v', 'libx264', '-preset', 'fast', '-c:a', 'aac', '-strict', '-2'
 
             # logger.info(f"执行剪辑命令: {' '.join(command)}") # Log command for debugging
-            process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8')
+            process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8',creationflags=subprocess.CREATE_NO_WINDOW)
             # FFmpeg often outputs info to stderr, so logging both stdout and stderr can be useful
             # if process.stdout:
             #     logger.info(f"FFmpeg STDOUT for {output_clip_name}:\n{process.stdout.strip()}")
@@ -262,7 +262,7 @@ def _process_merged_clip_group(
     try:
         # logger.info(f"执行合并剪辑命令: {' '.join(command)}")
         # Use errors='replace' for text output from subprocess
-        process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace',creationflags=subprocess.CREATE_NO_WINDOW)
         
         # FFmpeg often outputs informational messages to stderr.
         # Log stderr if it contains anything significant.
@@ -481,7 +481,7 @@ def clip_video_ffmpeg_with_duration(input_video_path, shooting_times_file, outpu
 
             logger.info(f"执行剪辑命令 (片段 {i+1}/{len(time_range_lines)}): {' '.join(command)}")
             # Using check=False to manually inspect returncode and stderr/stdout
-            process = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', check=False)
+            process = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', check=False,creationflags=subprocess.CREATE_NO_WINDOW)
 
             if process.returncode == 0:
                 # Even with returncode 0, FFmpeg might have warnings in stderr.
@@ -637,7 +637,7 @@ def _generate_merged_clip_ffmpeg_command(
     ]
     try:
         # logger.info(f"Executing merged clip command: {' '.join(command)}")
-        process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        process = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace',creationflags=subprocess.CREATE_NO_WINDOW)
         # if process.stderr and process.stderr.strip():
         #     logger.info(f"FFmpeg STDERR for {os.path.basename(output_clip_path)}:\n{process.stderr.strip()}")
         # elif process.stdout and process.stdout.strip(): # Log stdout if stderr is empty
@@ -935,7 +935,7 @@ def generate_concatenated_video_from_timestamps(
             intermediate_file_path
         ]
         try:
-            process = subprocess.run(command_segment_reencode, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            process = subprocess.run(command_segment_reencode, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace',creationflags=subprocess.CREATE_NO_WINDOW)
             logger.info(f"成功生成中间文件: {intermediate_file_path}")
             intermediate_file_paths.append(intermediate_file_path)
             if process.stderr and process.stderr.strip():
@@ -992,7 +992,7 @@ def generate_concatenated_video_from_timestamps(
         # For simplicity, assuming ffmpeg handles this correctly when `concat_list_file_path` is provided.
         # If issues, might need to use `cwd=intermediate_output_folder` in subprocess.run.
 
-        process = subprocess.run(command_concat, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+        process = subprocess.run(command_concat, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace',creationflags=subprocess.CREATE_NO_WINDOW)
         logger.info(f"成功生成最终合并视频: {final_output_path}")
         if process.stderr and process.stderr.strip():
              logger.debug(f"FFmpeg标准错误输出 (针对最终合并):\n{process.stderr.strip()}")
