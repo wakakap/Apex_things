@@ -39,7 +39,7 @@ class VideoProcessingGUI:
         self.style = ttk.Style() #
         self.style.theme_use('clam') #
 
-        self.default_root = "E:\\mande\\0_PLAN" #
+        self.default_root = os.path.expanduser("~") #
         self.default_log_file = os.path.join(self.default_root, "Apex_tool(beta).log") #
         
         self.file_handler = None # To keep track of the current file handler

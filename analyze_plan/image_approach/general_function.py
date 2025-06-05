@@ -2,6 +2,7 @@ import os
 import subprocess
 from urllib.parse import urlparse
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def download_twitch(video_url, outputfile, start_time=None, end_time=None, strea
     try:
         logger.info(f"执行下载命令: {' '.join(command)}")
         # Using errors='replace' for wider compatibility with yt-dlp output.
-        result = subprocess.run(command, check=True, text=True, capture_output=True, encoding='utf-8', errors='replace',creationflags=subprocess.CREATE_NO_WINDOW)
+        result = subprocess.run(command, check=True, text=True, capture_output=False, encoding='utf-8', errors='replace',creationflags=subprocess.CREATE_NO_WINDOW)
         if result.stdout: 
             logger.debug(f"yt-dlp STDOUT:\n{result.stdout.strip()}") # Changed to debug
         if result.stderr and result.stderr.strip(): # yt-dlp often puts progress here
